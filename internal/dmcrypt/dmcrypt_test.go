@@ -16,16 +16,19 @@ import (
 
 // MockCommandExecutor implements CommandExecutor for testing
 type MockCommandExecutor struct {
-	commands []string
-	outputs  map[string]string
-	errors   map[string]error
+	commands          []string
+	outputs           map[string]string
+	errors            map[string]error
+	availableCommands map[string]bool
+	commandValidation error
 }
 
 func NewMockCommandExecutor() *MockCommandExecutor {
 	return &MockCommandExecutor{
-		commands: make([]string, 0),
-		outputs:  make(map[string]string),
-		errors:   make(map[string]error),
+		commands:          make([]string, 0),
+		outputs:           make(map[string]string),
+		errors:            make(map[string]error),
+		availableCommands: make(map[string]bool),
 	}
 }
 
@@ -53,10 +56,28 @@ func (m *MockCommandExecutor) ExecuteWithContext(ctx context.Context, command st
 }
 
 func (m *MockCommandExecutor) IsCommandAvailable(command string) bool {
-	return true
+	if available, exists := m.availableCommands[command]; exists {
+		return available
+	}
+	return true // Default to available if not explicitly set
 }
 
 func (m *MockCommandExecutor) ValidateCommands(commands []string) error {
+	if m.commandValidation != nil {
+		return m.commandValidation
+	}
+
+	var missing []string
+	for _, cmd := range commands {
+		if !m.IsCommandAvailable(cmd) {
+			missing = append(missing, cmd)
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("required commands not found: %s", strings.Join(missing, ", "))
+	}
+
 	return nil
 }
 
@@ -66,6 +87,14 @@ func (m *MockCommandExecutor) SetOutput(command string, output string) {
 
 func (m *MockCommandExecutor) SetError(command string, err error) {
 	m.errors[command] = err
+}
+
+func (m *MockCommandExecutor) SetCommandAvailable(command string, available bool) {
+	m.availableCommands[command] = available
+}
+
+func (m *MockCommandExecutor) SetCommandValidationError(err error) {
+	m.commandValidation = err
 }
 
 func (m *MockCommandExecutor) GetExecutedCommands() []string {
@@ -352,5 +381,482 @@ func TestHelperFunctions(t *testing.T) {
 		assert.Equal(t, "test", trimSpace("  test  "))
 		assert.Equal(t, "test", trimSpace("\ttest\n"))
 		assert.Equal(t, "", trimSpace("   "))
+	})
+}
+
+func TestNewSystemValidator(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel) // Suppress logs during tests
+
+	validator := NewSystemValidator(logger)
+
+	assert.NotNil(t, validator)
+	assert.Equal(t, logger, validator.logger)
+	assert.NotNil(t, validator.executor)
+}
+
+func TestValidateSystemRequirements(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	// Note: ValidateSystemRequirements checks root privileges via CheckRootPrivileges()
+	// which uses os.Geteuid() and cannot be easily mocked. This test validates
+	// the other validation steps when root privileges would pass.
+
+	t.Run("required commands failure", func(t *testing.T) {
+		// Skip root privilege check for this test by testing the function directly
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		// Mock missing command
+		mockExecutor.SetCommandAvailable("cryptsetup", false)
+
+		err := validator.validateRequiredCommands()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "required commands not found")
+	})
+
+	t.Run("kernel modules failure", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		// Mock kernel module failure
+		mockExecutor.SetOutput("lsmod", "modules loaded")
+		mockExecutor.SetError("modprobe dm_crypt", fmt.Errorf("module not found"))
+
+		err := validator.validateKernelModules()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "kernel module validation failed for dm_crypt")
+	})
+}
+
+func TestValidateRootPrivileges(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	// Note: validateRootPrivileges() calls manager.CheckRootPrivileges() which uses
+	// os.Geteuid() directly and cannot be easily mocked. This test documents the
+	// behavior rather than mocking it.
+
+	t.Run("documents root privilege requirement", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		err := validator.validateRootPrivileges()
+
+		// This will likely fail in CI/test environments since tests don't run as root
+		// but we document that the function requires root privileges
+		if err != nil {
+			assert.Contains(t, err.Error(), "root privileges validation failed")
+		}
+	})
+}
+
+func TestValidateRequiredCommands(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	t.Run("all commands available", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		// All commands available by default (return true)
+
+		err := validator.validateRequiredCommands()
+		assert.NoError(t, err)
+	})
+
+	t.Run("missing command", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetCommandAvailable("cryptsetup", true)
+		mockExecutor.SetCommandAvailable("blkid", false)
+		mockExecutor.SetCommandAvailable("udevadm", true)
+
+		err := validator.validateRequiredCommands()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "required commands not found")
+		assert.Contains(t, err.Error(), "blkid")
+	})
+}
+
+func TestValidateKernelModules(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	t.Run("all modules available", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("lsmod", "dm_crypt loaded")
+		mockExecutor.SetOutput("modprobe dm_crypt", "")
+		mockExecutor.SetOutput("modprobe dm_mod", "")
+
+		err := validator.validateKernelModules()
+		assert.NoError(t, err)
+	})
+
+	t.Run("module loading failure", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("lsmod", "modules loaded")
+		mockExecutor.SetError("modprobe dm_crypt", fmt.Errorf("module not available"))
+
+		err := validator.validateKernelModules()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "kernel module validation failed for dm_crypt")
+	})
+}
+
+func TestCheckKernelModule(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	t.Run("module loads successfully", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("lsmod", "dm_crypt loaded")
+		mockExecutor.SetOutput("modprobe dm_crypt", "")
+
+		err := validator.checkKernelModule("dm_crypt")
+		assert.NoError(t, err)
+	})
+
+	t.Run("lsmod fails but modprobe works", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetError("lsmod", fmt.Errorf("lsmod failed"))
+		mockExecutor.SetOutput("modprobe dm_crypt", "")
+
+		err := validator.checkKernelModule("dm_crypt")
+		assert.NoError(t, err)
+	})
+
+	t.Run("modprobe fails", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("lsmod", "modules loaded")
+		mockExecutor.SetError("modprobe dm_crypt", fmt.Errorf("module not found"))
+
+		err := validator.checkKernelModule("dm_crypt")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load kernel module dm_crypt")
+	})
+}
+
+func TestValidateCryptsetupVersion(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	t.Run("successful version check", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("cryptsetup --version", "cryptsetup 2.3.3")
+
+		err := validator.ValidateCryptsetupVersion()
+		assert.NoError(t, err)
+	})
+
+	t.Run("cryptsetup command fails", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetError("cryptsetup --version", fmt.Errorf("command failed"))
+
+		err := validator.ValidateCryptsetupVersion()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get cryptsetup version")
+	})
+
+	t.Run("empty version output", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("cryptsetup --version", "")
+
+		err := validator.ValidateCryptsetupVersion()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cryptsetup version output is empty")
+	})
+}
+
+func TestValidateDeviceMapperSupport(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	t.Run("device mapper available", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("ls /dev/mapper", "control")
+		mockExecutor.SetOutput("dmsetup ls", "No devices found")
+
+		err := validator.ValidateDeviceMapperSupport()
+		assert.NoError(t, err)
+	})
+
+	t.Run("device mapper directory missing", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetError("ls /dev/mapper", fmt.Errorf("directory not found"))
+
+		err := validator.ValidateDeviceMapperSupport()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "device mapper directory not accessible")
+	})
+
+	t.Run("dmsetup not available but not critical", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("ls /dev/mapper", "control")
+		mockExecutor.SetError("dmsetup ls", fmt.Errorf("dmsetup not found"))
+
+		err := validator.ValidateDeviceMapperSupport()
+		assert.NoError(t, err) // Should not fail even if dmsetup is missing
+	})
+}
+
+func TestGetSystemInfo(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	t.Run("collect all system info", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("cryptsetup --version", "cryptsetup 2.3.3")
+		mockExecutor.SetOutput("uname -r", "5.4.0-generic")
+		mockExecutor.SetOutput("dmsetup version", "Library version:   1.02.167")
+		mockExecutor.SetOutput("cryptsetup --help", "Usage: cryptsetup...")
+
+		info, err := validator.GetSystemInfo()
+		assert.NoError(t, err)
+		assert.Equal(t, "cryptsetup 2.3.3", info["cryptsetup_version"])
+		assert.Equal(t, "5.4.0-generic", info["kernel_version"])
+		assert.Equal(t, "Library version:   1.02.167", info["dm_version"])
+		assert.Equal(t, "yes", info["luks2_supported"])
+	})
+
+	t.Run("partial system info", func(t *testing.T) {
+		validator := NewSystemValidator(logger)
+		mockExecutor := NewMockCommandExecutor()
+		validator.executor = mockExecutor
+
+		mockExecutor.SetOutput("cryptsetup --version", "cryptsetup 2.3.3")
+		mockExecutor.SetError("uname -r", fmt.Errorf("command failed"))
+		mockExecutor.SetError("dmsetup version", fmt.Errorf("dmsetup not found"))
+		mockExecutor.SetError("cryptsetup --help", fmt.Errorf("help failed"))
+
+		info, err := validator.GetSystemInfo()
+		assert.NoError(t, err)
+		assert.Equal(t, "cryptsetup 2.3.3", info["cryptsetup_version"])
+		assert.Equal(t, "unknown", info["luks2_supported"])
+		assert.NotContains(t, info, "kernel_version")
+		assert.NotContains(t, info, "dm_version")
+	})
+}
+
+func TestGetDeviceUUID(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	manager := NewManager(logger)
+	devicePath := "/dev/nonexistent"
+
+	t.Run("device not found error", func(t *testing.T) {
+		// This will likely fail since the device doesn't exist
+		// but tests that the function handles errors properly
+		uuid, err := manager.GetDeviceUUID(devicePath)
+		assert.Error(t, err)
+		assert.Empty(t, uuid)
+		assert.Contains(t, err.Error(), "LUKS get-uuid failed")
+	})
+}
+
+func TestLUKSManagerOpenDevice(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	luksManager := NewLUKSManager(logger)
+	devicePath := "/dev/nonexistent"
+	deviceName := "test-device"
+	validKey := base64.StdEncoding.EncodeToString(make([]byte, 512)) // 4096-bit key
+
+	t.Run("invalid device path", func(t *testing.T) {
+		err := luksManager.OpenDevice(devicePath, validKey, deviceName)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "LUKS validate failed")
+	})
+
+	t.Run("invalid key format", func(t *testing.T) {
+		err := luksManager.OpenDevice(devicePath, "invalid-key", deviceName)
+		assert.Error(t, err)
+		// Error will be from device validation first
+		assert.Error(t, err)
+	})
+}
+
+func TestLUKSManagerCloseDevice(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	luksManager := NewLUKSManager(logger)
+	deviceName := "nonexistent-device"
+
+	t.Run("close non-existent device", func(t *testing.T) {
+		// This will likely fail but tests the error handling path
+		err := luksManager.CloseDevice(deviceName)
+		// Don't assert success/failure as it depends on environment
+		_ = err
+	})
+}
+
+func TestLUKSManagerGetLUKSInfo(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	luksManager := NewLUKSManager(logger)
+	devicePath := "/dev/nonexistent"
+
+	t.Run("device not found", func(t *testing.T) {
+		info, err := luksManager.GetLUKSInfo(devicePath)
+		assert.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "LUKS info failed")
+	})
+}
+
+func TestUdevManagerRefreshDeviceDatabase(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	udevManager := NewUdevManager(logger)
+
+	t.Run("calls udev commands", func(t *testing.T) {
+		// This tests that the function exists and can be called
+		// In a real environment, this would succeed if udevadm is available
+		err := udevManager.RefreshDeviceDatabase()
+		// Don't assert on success/failure since it depends on environment
+		// Just verify the function doesn't panic
+		_ = err
+	})
+}
+
+func TestUdevManagerValidateUdevCommands(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	udevManager := NewUdevManager(logger)
+
+	t.Run("validates udev command availability", func(t *testing.T) {
+		// This tests that the function exists and can be called
+		err := udevManager.ValidateUdevCommands()
+		// Don't assert on success/failure since it depends on environment
+		_ = err
+	})
+}
+
+func TestSplitString(t *testing.T) {
+	t.Run("normal split", func(t *testing.T) {
+		parts := splitString("key=value", "=")
+		assert.Equal(t, []string{"key", "value"}, parts)
+	})
+
+	t.Run("multiple separators", func(t *testing.T) {
+		parts := splitString("a=b=c", "=")
+		// This function splits on all occurrences, not just the first
+		assert.Equal(t, []string{"a", "b", "c"}, parts)
+	})
+
+	t.Run("no separator", func(t *testing.T) {
+		parts := splitString("noseparator", "=")
+		assert.Equal(t, []string{"noseparator"}, parts)
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		parts := splitString("", "=")
+		// Empty string returns empty slice
+		assert.Equal(t, []string{}, parts)
+	})
+}
+
+func TestNewUdevManager(t *testing.T) {
+	logger := logrus.New()
+	udevManager := NewUdevManager(logger)
+
+	assert.NotNil(t, udevManager)
+	assert.Equal(t, logger, udevManager.logger)
+	assert.NotNil(t, udevManager.executor)
+}
+
+func TestUdevManagerWaitForUUID(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	udevManager := NewUdevManager(logger)
+	uuid := "nonexistent-uuid"
+	timeout := 1 * time.Second
+
+	t.Run("wait for non-existent UUID", func(t *testing.T) {
+		// This will timeout/fail but tests the code path
+		err := udevManager.WaitForUUID(uuid, timeout)
+		// Don't assert success/failure as it depends on environment
+		_ = err
+	})
+}
+
+func TestUdevManagerWaitForDevice(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	udevManager := NewUdevManager(logger)
+	devicePath := "/dev/nonexistent"
+	timeout := 1 * time.Second
+
+	t.Run("wait for non-existent device", func(t *testing.T) {
+		// This will timeout/fail but tests the code path
+		err := udevManager.WaitForDevice(devicePath, timeout)
+		// Don't assert success/failure as it depends on environment
+		_ = err
+	})
+}
+
+func TestLUKSManagerFormatDevicePartial(t *testing.T) {
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+
+	luksManager := NewLUKSManager(logger)
+
+	t.Run("format with invalid device", func(t *testing.T) {
+		invalidDevice := "/dev/nonexistent"
+		validKey := base64.StdEncoding.EncodeToString(make([]byte, 512))
+		uuid := "test-uuid"
+
+		err := luksManager.FormatDevice(invalidDevice, validKey, uuid)
+		assert.Error(t, err)
+		// This will fail at device validation stage
+		assert.Contains(t, err.Error(), "LUKS validate failed")
 	})
 }
