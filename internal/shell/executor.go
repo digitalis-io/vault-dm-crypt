@@ -3,6 +3,7 @@ package shell
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -72,13 +73,14 @@ func (e *Executor) ExecuteWithContext(ctx context.Context, command string, args 
 
 	if err != nil {
 		// Check if it's a context timeout
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			e.logger.WithFields(logFields).Error("Command execution timed out")
 			return "", fmt.Errorf("command timed out after %v: %s %s", duration, command, strings.Join(args, " "))
 		}
 
 		// Check if it's an exit error
-		if exitError, ok := err.(*exec.ExitError); ok {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
 			e.logger.WithFields(logFields).WithField("exit_code", exitError.ExitCode()).Error("Command failed")
 			return "", fmt.Errorf("command failed with exit code %d: %s (stderr: %s)", exitError.ExitCode(), command, stderrStr)
 		}
@@ -105,7 +107,8 @@ func (e *Executor) ExecuteQuiet(command string, args ...string) (string, error) 
 	stdoutStr := stdout.String()
 
 	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
 			return "", fmt.Errorf("command failed with exit code %d: %s", exitError.ExitCode(), command)
 		}
 		return "", fmt.Errorf("command execution failed: %w", err)
