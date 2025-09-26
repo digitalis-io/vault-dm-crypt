@@ -1,0 +1,21 @@
+[Unit]
+Description=Vault DM-Crypt Decrypt %i
+Documentation=https://github.com/axonops/vault-dm-crypt
+After=network-online.target
+Wants=network-online.target
+Before=cryptsetup.target
+DefaultDependencies=false
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+TimeoutSec=0
+KillSignal=SIGTERM
+KillMode=none
+Environment=VAULT_DM_CRYPT_TIMEOUT=10000
+ExecStart=/bin/sh -c 'vault-dm-crypt --retry $${VAULT_DM_CRYPT_TIMEOUT} decrypt %i'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
