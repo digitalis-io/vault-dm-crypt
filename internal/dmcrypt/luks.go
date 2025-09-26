@@ -8,8 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	"github.com/axonops/vault-dm-crypt/pkg/errors"
 )
 
 // LUKSManager handles LUKS-specific operations

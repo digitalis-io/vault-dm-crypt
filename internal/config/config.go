@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
 	"github.com/spf13/viper"
+
+	"github.com/axonops/vault-dm-crypt/pkg/errors"
 )
 
 // Config represents the complete configuration structure

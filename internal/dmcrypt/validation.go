@@ -3,8 +3,9 @@ package dmcrypt
 import (
 	"fmt"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	"github.com/axonops/vault-dm-crypt/pkg/errors"
 )
 
 // SystemValidator validates system requirements for dm-crypt operations

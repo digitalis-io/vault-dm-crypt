@@ -1,10 +1,13 @@
 # vault-dm-crypt
 
-A Go implementation of [vaultlocker](https://github.com/openstack-charmers/vaultlocker) - a utility to store and retrieve dm-crypt encryption keys in HashiCorp Vault.
+A Go implementation of [vaultlocker](https://github.com/openstack-charmers/vaultlocker) - a utility to store and
+retrieve dm-crypt encryption keys in HashiCorp Vault.
 
 ## Overview
 
-vault-dm-crypt provides the same functionality as the Python-based vaultlocker but is implemented in Go for better performance, reduced dependencies, and improved maintainability. It enables secure management of encrypted block devices using dm-crypt/LUKS with encryption keys stored in HashiCorp Vault.
+vault-dm-crypt provides the same functionality as the Python-based vaultlocker but is implemented in Go for better
+performance, reduced dependencies, and improved maintainability. It enables secure management of encrypted block devices
+using dm-crypt/LUKS with encryption keys stored in HashiCorp Vault.
 
 ## Features
 
@@ -21,6 +24,7 @@ vault-dm-crypt provides the same functionality as the Python-based vaultlocker b
 🚧 **Under Development** - Following the implementation plan in [plans/PLAN.md](plans/PLAN.md)
 
 ### Completed
+
 - ✅ Project structure and build system
 - ✅ Makefile with comprehensive targets
 - ✅ GitHub Actions CI/CD pipeline
@@ -28,6 +32,7 @@ vault-dm-crypt provides the same functionality as the Python-based vaultlocker b
 - ✅ Basic logging infrastructure
 
 ### In Progress
+
 - 🔄 Configuration module
 - 🔄 Vault client integration
 - 🔄 DM-Crypt operations
@@ -60,11 +65,13 @@ make install
 ## Usage
 
 ### Encrypt a block device
+
 ```bash
 vault-dm-crypt encrypt /dev/sdd1
 ```
 
 ### Decrypt a device
+
 ```bash
 vault-dm-crypt decrypt <uuid>
 ```
@@ -113,6 +120,7 @@ make dev
 ## Migration from vaultlocker
 
 This project maintains compatibility with the existing vaultlocker:
+
 - Same Vault paths: `secret/vaultlocker/<uuid>`
 - Same systemd service pattern (renamed to vault-dm-crypt)
 - Same CLI commands: encrypt/decrypt

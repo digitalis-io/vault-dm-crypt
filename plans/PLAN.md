@@ -2,21 +2,25 @@
 
 ## Executive Summary
 
-This document outlines the complete implementation plan for porting the Python-based vaultlocker to Go. The new implementation will maintain full compatibility with the existing vaultlocker functionality while providing better performance, reduced dependencies, and improved maintainability.
+This document outlines the complete implementation plan for porting the Python-based vaultlocker to Go. The new
+implementation will maintain full compatibility with the existing vaultlocker functionality while providing better
+performance, reduced dependencies, and improved maintainability.
 
 ## Project Overview
 
 ### Original Project Analysis
+
 - **Name**: vaultlocker
 - **Purpose**: Store and retrieve dm-crypt encryption keys in HashiCorp Vault
 - **Key Features**:
-  - Encrypts block devices using LUKS/dm-crypt
-  - Stores encryption keys securely in HashiCorp Vault
-  - Automatic device decryption on boot via systemd
-  - AppRole authentication for Vault access
-  - Retry mechanism for Vault connectivity
+    - Encrypts block devices using LUKS/dm-crypt
+    - Stores encryption keys securely in HashiCorp Vault
+    - Automatic device decryption on boot via systemd
+    - AppRole authentication for Vault access
+    - Retry mechanism for Vault connectivity
 
 ### Go Implementation Goals
+
 - Feature parity with Python vaultlocker
 - Zero Python dependencies
 - Improved error handling and logging
@@ -27,6 +31,7 @@ This document outlines the complete implementation plan for porting the Python-b
 ## Architecture Design
 
 ### Package Structure
+
 ```
 vault-dm-crypt/
 ├── main.go                      # CLI entry point
@@ -70,150 +75,157 @@ vault-dm-crypt/
 ## Implementation Phases
 
 ### Phase 1: Core Foundation (Week 1)
+
 1. **Project Setup**
-   - Initialize Go module structure
-   - Set up Makefile with build, test, install targets
-   - Configure CI/CD pipeline (GitHub Actions)
-   - Set up dependency management (go.mod)
+    - Initialize Go module structure
+    - Set up Makefile with build, test, install targets
+    - Configure CI/CD pipeline (GitHub Actions)
+    - Set up dependency management (go.mod)
 
 2. **Configuration Module**
-   - Implement configuration file parser (TOML/YAML)
-   - Support environment variable overrides
-   - Validate configuration parameters
-   - Default configuration handling
+    - Implement configuration file parser (TOML/YAML)
+    - Support environment variable overrides
+    - Validate configuration parameters
+    - Default configuration handling
 
 3. **Error Handling Framework**
-   - Define custom error types matching Python exceptions:
-     - VaultlockerError (base)
-     - VaultWriteError
-     - VaultReadError
-     - VaultDeleteError
-     - VaultKeyMismatch
-     - LUKSFailure
-   - Implement error wrapping and context
+    - Define custom error types matching Python exceptions:
+        - VaultlockerError (base)
+        - VaultWriteError
+        - VaultReadError
+        - VaultDeleteError
+        - VaultKeyMismatch
+        - LUKSFailure
+    - Implement error wrapping and context
 
 ### Phase 2: Vault Integration (Week 1-2)
+
 1. **Vault Client Implementation**
-   - Use official HashiCorp Vault Go client
-   - Implement connection pooling and retry logic
-   - TLS/CA certificate bundle support
-   - Connection timeout handling
+    - Use official HashiCorp Vault Go client
+    - Implement connection pooling and retry logic
+    - TLS/CA certificate bundle support
+    - Connection timeout handling
 
 2. **AppRole Authentication**
-   - Implement AppRole authentication flow
-   - Token renewal mechanism
-   - Secret ID rotation support
-   - Error recovery and re-authentication
+    - Implement AppRole authentication flow
+    - Token renewal mechanism
+    - Secret ID rotation support
+    - Error recovery and re-authentication
 
 3. **Secret Management**
-   - Write encryption keys to Vault
-   - Read encryption keys from Vault
-   - Delete keys when needed
-   - Support multiple backend types
+    - Write encryption keys to Vault
+    - Read encryption keys from Vault
+    - Delete keys when needed
+    - Support multiple backend types
 
 ### Phase 3: DM-Crypt Operations (Week 2)
+
 1. **Key Generation**
-   - Generate 4096-bit random keys
-   - Base64 encoding/decoding
-   - Key validation
+    - Generate 4096-bit random keys
+    - Base64 encoding/decoding
+    - Key validation
 
 2. **LUKS Operations**
-   - Format devices with LUKS
-   - Open encrypted devices
-   - UUID management
-   - Device mapper naming
+    - Format devices with LUKS
+    - Open encrypted devices
+    - UUID management
+    - Device mapper naming
 
 3. **System Integration**
-   - udev integration for device discovery
-   - Device rescan and settle operations
-   - Block device validation
-   - Permission checks (root requirement)
+    - udev integration for device discovery
+    - Device rescan and settle operations
+    - Block device validation
+    - Permission checks (root requirement)
 
 ### Phase 4: CLI Implementation (Week 3)
+
 1. **Command Structure**
-   - Use cobra/urfave CLI framework
-   - Main commands:
-     - `encrypt <device>` - Encrypt a block device
-     - `decrypt <uuid>` - Decrypt and open a device
-   - Global flags:
-     - `--config` - Configuration file path
-     - `--retry` - Retry timeout in seconds
-     - `--verbose` - Verbose output
-     - `--debug` - Debug logging
+    - Use cobra/urfave CLI framework
+    - Main commands:
+        - `encrypt <device>` - Encrypt a block device
+        - `decrypt <uuid>` - Decrypt and open a device
+    - Global flags:
+        - `--config` - Configuration file path
+        - `--retry` - Retry timeout in seconds
+        - `--verbose` - Verbose output
+        - `--debug` - Debug logging
 
 2. **Command Implementation**
-   - Encrypt command workflow:
-     ```
-     1. Validate device exists and is unmounted
-     2. Generate encryption key
-     3. Store key in Vault at path: secret/vaultlocker/<uuid>
-     4. Format device with LUKS using key
-     5. Open LUKS device
-     6. Enable systemd service for auto-mount
-     7. Output mapped device path
-     ```
+    - Encrypt command workflow:
+      ```
+      1. Validate device exists and is unmounted
+      2. Generate encryption key
+      3. Store key in Vault at path: secret/vaultlocker/<uuid>
+      4. Format device with LUKS using key
+      5. Open LUKS device
+      6. Enable systemd service for auto-mount
+      7. Output mapped device path
+      ```
 
-   - Decrypt command workflow:
-     ```
-     1. Retrieve key from Vault using UUID
-     2. Open LUKS device with key
-     3. Output mapped device path
-     ```
+    - Decrypt command workflow:
+      ```
+      1. Retrieve key from Vault using UUID
+      2. Open LUKS device with key
+      3. Output mapped device path
+      ```
 
 3. **Logging and Output**
-   - Structured logging (logrus)
-   - JSON output option for automation
-   - Progress indicators for long operations
-   - Clear error messages
+    - Structured logging (logrus)
+    - JSON output option for automation
+    - Progress indicators for long operations
+    - Clear error messages
 
 ### Phase 5: SystemD Integration (Week 3)
+
 1. **Service Files**
-   - Create vault-dm-crypt-decrypt@.service template
-   - Support instance parameters (%i for UUID)
-   - Dependency management (After=network-online.target)
-   - Timeout configuration
+    - Create vault-dm-crypt-decrypt@.service template
+    - Support instance parameters (%i for UUID)
+    - Dependency management (After=network-online.target)
+    - Timeout configuration
 
 2. **Service Management**
-   - Enable/disable service instances
-   - Status checking
-   - Journal integration for logging
+    - Enable/disable service instances
+    - Status checking
+    - Journal integration for logging
 
 ### Phase 6: Testing & Documentation (Week 4)
+
 1. **Unit Tests**
-   - Minimum 80% code coverage
-   - Mock Vault interactions
-   - Mock system commands
-   - Test error conditions
+    - Minimum 80% code coverage
+    - Mock Vault interactions
+    - Mock system commands
+    - Test error conditions
 
 2. **Integration Tests**
-   - Docker-based test environment
-   - Real Vault server testing
-   - Loop device testing for dm-crypt
-   - End-to-end encryption/decryption
+    - Docker-based test environment
+    - Real Vault server testing
+    - Loop device testing for dm-crypt
+    - End-to-end encryption/decryption
 
 3. **Documentation**
-   - Installation guide
-   - Configuration reference
-   - Usage examples
-   - Migration guide from Python vaultlocker
-   - API documentation (godoc)
+    - Installation guide
+    - Configuration reference
+    - Usage examples
+    - Migration guide from Python vaultlocker
+    - API documentation (godoc)
 
 ### Phase 7: Deployment & Migration (Week 4)
+
 1. **Build & Packaging**
-   - Static binary compilation
-   - Cross-compilation support (amd64, arm64)
-   - Debian/RPM package creation
+    - Static binary compilation
+    - Cross-compilation support (amd64, arm64)
+    - Debian/RPM package creation
 
 2. **Migration Tools**
-   - Configuration converter (Python format → Go format)
-   - Vault path migration utility
-   - Compatibility validation tool
+    - Configuration converter (Python format → Go format)
+    - Vault path migration utility
+    - Compatibility validation tool
 
 ## Technical Specifications
 
 ### Dependencies
 
-IMPORTANT: Note that newer versions of these dependencies could have been released since this document was created. 
+IMPORTANT: Note that newer versions of these dependencies could have been released since this document was created.
 Always ensure that the latest versions are used.
 
 ```go
@@ -226,6 +238,7 @@ github.com/stretchr/testify v1.8.4
 ```
 
 ### System Requirements
+
 - Linux kernel 3.18+ (dm-crypt support)
 - cryptsetup 2.0+
 - systemd 230+
@@ -233,6 +246,7 @@ github.com/stretchr/testify v1.8.4
 - Root privileges (for dm-crypt operations)
 
 ### Configuration File Format
+
 ```toml
 # /etc/vault-dm-crypt/config.toml
 [vault]
@@ -252,6 +266,7 @@ output = "/var/log/vault-dm-crypt.log"
 ```
 
 ### Vault Secret Schema
+
 ```json
 {
   "path": "secret/vaultlocker/<device-uuid>",
@@ -267,24 +282,24 @@ output = "/var/log/vault-dm-crypt.log"
 ## Security Considerations
 
 1. **Key Management**
-   - Keys never written to disk
-   - Memory scrubbing after use
-   - Secure random generation using crypto/rand
+    - Keys never written to disk
+    - Memory scrubbing after use
+    - Secure random generation using crypto/rand
 
 2. **Vault Communication**
-   - TLS enforcement for production
-   - Certificate validation
-   - Token expiration handling
+    - TLS enforcement for production
+    - Certificate validation
+    - Token expiration handling
 
 3. **System Security**
-   - Root privilege requirement validation
-   - Device permission checks
-   - Audit logging for all operations
+    - Root privilege requirement validation
+    - Device permission checks
+    - Audit logging for all operations
 
 4. **Error Handling**
-   - No sensitive data in error messages
-   - Proper cleanup on failure
-   - Atomic operations where possible
+    - No sensitive data in error messages
+    - Proper cleanup on failure
+    - Atomic operations where possible
 
 ## Performance Targets
 
@@ -297,31 +312,31 @@ output = "/var/log/vault-dm-crypt.log"
 
 ## Compatibility Matrix
 
-| Component | Python vaultlocker | Go vault-dm-crypt |
-|-----------|-------------------|-------------------|
-| Vault paths | ✓ secret/vaultlocker/<uuid> | ✓ Same |
-| Config format | INI | TOML (with converter) |
-| SystemD service | ✓ vaultlocker-decrypt@ | ✓ vault-dm-crypt-decrypt@ |
-| CLI commands | encrypt/decrypt | encrypt/decrypt |
-| LUKS format | LUKS1/2 | LUKS1/2 |
-| AppRole auth | ✓ | ✓ |
+| Component       | Python vaultlocker          | Go vault-dm-crypt         |
+|-----------------|-----------------------------|---------------------------|
+| Vault paths     | ✓ secret/vaultlocker/<uuid> | ✓ Same                    |
+| Config format   | INI                         | TOML (with converter)     |
+| SystemD service | ✓ vaultlocker-decrypt@      | ✓ vault-dm-crypt-decrypt@ |
+| CLI commands    | encrypt/decrypt             | encrypt/decrypt           |
+| LUKS format     | LUKS1/2                     | LUKS1/2                   |
+| AppRole auth    | ✓                           | ✓                         |
 
 ## Risk Mitigation
 
 1. **Data Loss Prevention**
-   - Confirmation prompts for destructive operations
-   - Backup key generation option
-   - Recovery key support
+    - Confirmation prompts for destructive operations
+    - Backup key generation option
+    - Recovery key support
 
 2. **Compatibility Issues**
-   - Extensive testing on multiple distributions
-   - Version detection for system tools
-   - Graceful degradation
+    - Extensive testing on multiple distributions
+    - Version detection for system tools
+    - Graceful degradation
 
 3. **Migration Risks**
-   - Parallel installation support
-   - Rollback procedures
-   - Data validation tools
+    - Parallel installation support
+    - Rollback procedures
+    - Data validation tools
 
 ## Success Criteria
 

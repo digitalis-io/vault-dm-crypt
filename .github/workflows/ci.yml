@@ -15,98 +15,98 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Verify dependencies
-      run: go mod verify
+      - name: Verify dependencies
+        run: go mod verify
 
-    - name: Run go vet
-      run: go vet ./...
+      - name: Run go vet
+        run: go vet ./...
 
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-        args: --timeout=5m
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
 
   build:
     name: Build
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goos: [linux]
-        goarch: [amd64, arm64]
+        goos: [ linux ]
+        goarch: [ amd64, arm64 ]
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    - name: Build binary
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-      run: |
-        mkdir -p build
-        go build -ldflags "-X main.version=$(git describe --tags --always --dirty)" \
-          -o build/vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }} \
-          ./cmd/vault-dm-crypt
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p build
+          go build -ldflags "-X main.version=$(git describe --tags --always --dirty)" \
+            -o build/vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }} \
+            ./cmd/vault-dm-crypt
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: build/vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: build/vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }}
 
   integration:
     name: Integration Tests
@@ -121,52 +121,52 @@ jobs:
           VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
         options: --cap-add=IPC_LOCK
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Install cryptsetup
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cryptsetup
+      - name: Install cryptsetup
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cryptsetup
 
-    - name: Run integration tests
-      env:
-        VAULT_ADDR: http://localhost:8200
-        VAULT_TOKEN: root-token
-      run: |
-        go test -v -tags=integration ./test/integration/...
+      - name: Run integration tests
+        env:
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: root-token
+        run: |
+          go test -v -tags=integration ./test/integration/...
 
   release:
     name: Release
-    needs: [test, lint, build]
+    needs: [ test, lint, build ]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: ./artifacts
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          artifacts/*/*
-        draft: false
-        prerelease: false
-        generate_release_notes: true
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true

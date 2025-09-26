@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/axonops/vault-dm-crypt/internal/shell"
 	"github.com/sirupsen/logrus"
+
+	"github.com/axonops/vault-dm-crypt/internal/shell"
 )
 
 // CommandExecutor interface for executing system commands

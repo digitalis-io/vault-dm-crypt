@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	"github.com/axonops/vault-dm-crypt/pkg/errors"
 )
 
 // Manager handles dm-crypt operations

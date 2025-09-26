@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
 	"github.com/hashicorp/vault/api"
 	"github.com/sirupsen/logrus"
+
+	"github.com/axonops/vault-dm-crypt/pkg/errors"
 )
 
 // AuthMethod represents different authentication methods

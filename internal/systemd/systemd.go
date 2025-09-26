@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/axonops/vault-dm-crypt/internal/shell"
 	"github.com/axonops/vault-dm-crypt/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // Executor interface for command execution

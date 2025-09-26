@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/axonops/vault-dm-crypt/internal/config"
 	"github.com/hashicorp/vault/api"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/axonops/vault-dm-crypt/internal/config"
 )
 
 func TestNewClient(t *testing.T) {
