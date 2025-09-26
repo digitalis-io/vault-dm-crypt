@@ -14,8 +14,8 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 // TestFramework provides integration testing infrastructure
@@ -112,16 +112,27 @@ func (tf *TestFramework) buildBinary() error {
 		return err
 	}
 
-	binaryPath := filepath.Join(tf.tempDir, "vault-dm-crypt")
-	tf.binaryPath = binaryPath
+	// Use the pre-built binary from the build directory
+	preBuildBinaryPath := filepath.Join(projectRoot, "build", "vault-dm-crypt")
 
-	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/vault-dm-crypt")
-	cmd.Dir = projectRoot
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Check if the pre-built binary exists
+	if _, err := os.Stat(preBuildBinaryPath); err == nil {
+		tf.binaryPath = preBuildBinaryPath
+		tf.t.Logf("Using pre-built binary: %s", tf.binaryPath)
+	} else {
+		tf.t.Logf("Pre-built binary not found at %s, building new one: %v", preBuildBinaryPath, err)
+		// Fall back to building the binary if it doesn't exist
+		binaryPath := filepath.Join(tf.tempDir, "vault-dm-crypt")
+		tf.binaryPath = binaryPath
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to build binary: %w", err)
+		cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/vault-dm-crypt")
+		cmd.Dir = projectRoot
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to build binary: %w", err)
+		}
 	}
 
 	return nil
@@ -191,15 +202,15 @@ func (tf *TestFramework) startVaultContainer() error {
 			"VAULT_DEV_ROOT_TOKEN_ID=test-root-token",
 			"VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200",
 		},
-		ExposedPorts: map[string]struct{}{
-			"8200/tcp": {},
+		ExposedPorts: nat.PortSet{
+			"8200/tcp": struct{}{},
 		},
 		Cmd: []string{"vault", "server", "-dev"},
 	}
 
 	hostConfig := &container.HostConfig{
-		PortBindings: map[string][]container.PortBinding{
-			"8200/tcp": {{HostIP: "127.0.0.1", HostPort: "0"}}, // Random port
+		PortBindings: nat.PortMap{
+			"8200/tcp": []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: "0"}}, // Random port
 		},
 		AutoRemove: true,
 	}
