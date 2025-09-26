@@ -31,17 +31,41 @@ go mod verify
 ### Building
 
 ```bash
-# Build the project
-go build -o vault-dm-crypt
+# Build the project using Makefile
+make build
 
 # Build with race detection (for development)
-go build -race -o vault-dm-crypt
+make race
+
+# Build development version with debug symbols
+make dev
+
+# Cross-compile for different architectures
+make build-all
+
+# Build the project directly with go
+go build -o vault-dm-crypt ./cmd/vault-dm-crypt
+
+# Build with race detection (for development)
+go build -race -o vault-dm-crypt ./cmd/vault-dm-crypt
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
+# Run all tests using Makefile
+make test
+
+# Run tests with verbose output
+make test-verbose
+
+# Run tests with coverage
+make test-cover
+
+# Run specific test
+TEST=TestName make test-run
+
+# Run all tests directly with go
 go test ./...
 
 # Run tests with verbose output
@@ -57,7 +81,16 @@ go test -run TestName ./...
 ### Linting and Formatting
 
 ```bash
-# Format code
+# Format code using Makefile
+make fmt
+
+# Run go vet using Makefile
+make vet
+
+# Run linting (includes golangci-lint if installed)
+make lint
+
+# Format code directly
 go fmt ./...
 
 # Run go vet for static analysis
@@ -65,6 +98,29 @@ go vet ./...
 
 # Install and run golangci-lint (if available)
 golangci-lint run
+```
+
+### Installation
+
+```bash
+# Install binary and systemd service (requires sudo)
+make install
+
+# Uninstall
+make uninstall
+```
+
+### Makefile Targets
+
+```bash
+# Display all available targets
+make help
+
+# Clean build artifacts
+make clean
+
+# Download and verify dependencies
+make deps
 ```
 
 ## Key Development Notes
