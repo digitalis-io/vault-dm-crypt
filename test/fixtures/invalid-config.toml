@@ -1,0 +1,18 @@
+# Invalid configuration file for testing error handling
+# This file contains syntax errors and invalid values
+
+[vault
+url = "invalid-url-without-protocol"
+backend =
+approle = ""
+secret_id =
+timeout = "not-a-number"
+retry_max = -1
+
+[logging]
+level = "invalid-level"
+format = 123
+output = /nonexistent/path/file.log
+
+# Missing closing bracket
+[incomplete_section

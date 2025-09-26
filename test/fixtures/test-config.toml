@@ -1,0 +1,17 @@
+# Test configuration file for vault-dm-crypt integration tests
+# This file contains sample configuration values for testing
+
+[vault]
+url = "http://localhost:8200"
+backend = "secret"
+approle = "test-role-id"
+secret_id = "test-secret-id"
+ca_bundle = ""
+timeout = 30
+retry_max = 3
+retry_delay = 5
+
+[logging]
+level = "debug"
+format = "text"
+output = "stdout"

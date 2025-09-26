@@ -25,7 +25,7 @@ GREEN := \033[0;32m
 YELLOW := \033[0;33m
 NC := \033[0m # No Color
 
-.PHONY: all build clean test test-verbose test-cover fmt vet lint install uninstall help deps dev race
+.PHONY: all build clean test test-verbose test-cover test-integration test-integration-root fmt vet lint install uninstall help deps dev race
 
 # Default target
 all: deps fmt vet test build
@@ -35,9 +35,11 @@ help:
 	@echo "$(GREEN)Available targets:$(NC)"
 	@echo "  $(YELLOW)build$(NC)        - Build the binary"
 	@echo "  $(YELLOW)clean$(NC)        - Remove build artifacts"
-	@echo "  $(YELLOW)test$(NC)         - Run tests"
-	@echo "  $(YELLOW)test-verbose$(NC) - Run tests with verbose output"
-	@echo "  $(YELLOW)test-cover$(NC)   - Run tests with coverage"
+	@echo "  $(YELLOW)test$(NC)         - Run unit tests"
+	@echo "  $(YELLOW)test-verbose$(NC) - Run unit tests with verbose output"
+	@echo "  $(YELLOW)test-cover$(NC)   - Run unit tests with coverage"
+	@echo "  $(YELLOW)test-integration$(NC) - Run integration tests"
+	@echo "  $(YELLOW)test-integration-root$(NC) - Run integration tests with root privileges"
 	@echo "  $(YELLOW)fmt$(NC)          - Format code"
 	@echo "  $(YELLOW)vet$(NC)          - Run go vet"
 	@echo "  $(YELLOW)lint$(NC)         - Run golangci-lint (if installed)"
@@ -82,22 +84,44 @@ clean:
 	@$(GOCMD) clean
 	@echo "$(GREEN)Clean complete$(NC)"
 
-# Run tests
+# Run unit tests
 test:
-	@echo "$(GREEN)Running tests...$(NC)"
+	@echo "$(GREEN)Running unit tests...$(NC)"
 	@$(GOTEST) ./...
 
-# Run tests with verbose output
+# Run unit tests with verbose output
 test-verbose:
-	@echo "$(GREEN)Running tests (verbose)...$(NC)"
+	@echo "$(GREEN)Running unit tests (verbose)...$(NC)"
 	@$(GOTEST) -v ./...
 
-# Run tests with coverage
+# Run unit tests with coverage
 test-cover:
-	@echo "$(GREEN)Running tests with coverage...$(NC)"
+	@echo "$(GREEN)Running unit tests with coverage...$(NC)"
 	@$(GOTEST) -cover -coverprofile=coverage.out ./...
 	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
+
+# Run integration tests
+test-integration: build
+	@echo "$(GREEN)Running integration tests...$(NC)"
+	@if command -v docker &> /dev/null; then \
+		cd test/integration && $(GOTEST) -v -timeout=10m .; \
+	else \
+		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
+	fi
+
+# Run integration tests with root privileges
+test-integration-root: build
+	@echo "$(GREEN)Running integration tests with root privileges...$(NC)"
+	@if [ "$(shell id -u)" = "0" ]; then \
+		if command -v docker &> /dev/null; then \
+			cd test/integration && $(GOTEST) -v -timeout=15m .; \
+		else \
+			echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
+		fi \
+	else \
+		echo "$(YELLOW)Root privileges required. Run: sudo make test-integration-root$(NC)"; \
+	fi
 
 # Run specific test
 test-run:

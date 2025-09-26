@@ -1,0 +1,27 @@
+# Docker Compose file for integration testing
+# This provides an alternative to the Go-based Docker management for simpler setups
+
+version: '3.8'
+
+services:
+  vault:
+    image: vault:latest
+    container_name: vault-dm-crypt-test
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: test-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    command: ["vault", "server", "-dev"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/v1/sys/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+networks:
+  default:
+    name: vault-dm-crypt-test-network
