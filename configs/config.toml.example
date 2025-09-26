@@ -1,0 +1,38 @@
+# vault-dm-crypt configuration file
+# Copy this file to /etc/vault-dm-crypt/config.toml and modify as needed
+
+[vault]
+# Vault server URL
+url = "http://127.0.0.1:8200"
+
+# Vault backend for storing secrets
+backend = "secret"
+
+# AppRole authentication credentials
+# These should be provided by your Vault administrator
+approle = "your-approle-id-here"
+secret_id = "your-secret-id-here"
+
+# Path to CA certificate bundle for TLS verification
+# Uncomment and set this if using HTTPS with custom CA
+# ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
+
+# Connection timeout in seconds
+timeout = 30
+
+# Maximum number of retry attempts for Vault operations
+retry_max = 3
+
+# Delay between retry attempts in seconds
+retry_delay = 5
+
+[logging]
+# Log level: debug, info, warn, error, fatal, panic
+level = "info"
+
+# Log format: text or json
+format = "text"
+
+# Log output: stdout, stderr, or file path
+output = "stdout"
+# output = "/var/log/vault-dm-crypt.log"
