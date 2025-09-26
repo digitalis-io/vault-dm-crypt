@@ -1,23 +1,26 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/axonops/vault-dm-crypt/internal/config"
+	"github.com/axonops/vault-dm-crypt/internal/vault"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var (
-	version = "dev"
-	cfgFile string
-	verbose bool
-	debug   bool
-	retry   int
-	logger  *logrus.Logger
-	cfg     *config.Config
+	version     = "dev"
+	cfgFile     string
+	verbose     bool
+	debug       bool
+	retry       int
+	logger      *logrus.Logger
+	cfg         *config.Config
+	vaultClient *vault.Client
 )
 
 func init() {
@@ -72,9 +75,18 @@ This tool provides a secure way to manage encrypted volumes by:
 		}
 
 		logger.WithFields(logrus.Fields{
-			"vault_url":    cfg.Vault.URL,
+			"vault_url":     cfg.Vault.URL,
 			"vault_backend": cfg.Vault.Backend,
 		}).Debug("Configuration loaded")
+
+		// Initialize Vault client
+		var err2 error
+		vaultClient, err2 = vault.NewClient(&cfg.Vault, logger)
+		if err2 != nil {
+			return fmt.Errorf("failed to initialize Vault client: %w", err2)
+		}
+
+		logger.Debug("Vault client initialized")
 
 		return nil
 	},
@@ -96,7 +108,23 @@ This command will:
 		device := args[0]
 		logger.Infof("Encrypting device: %s", device)
 
-		// TODO: Implement encryption logic
+		// Test Vault connectivity
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout)
+		defer cancel()
+
+		logger.Debug("Testing Vault connectivity...")
+
+		err := vaultClient.WithRetry(ctx, func() error {
+			return vaultClient.EnsureAuthenticated(ctx)
+		})
+
+		if err != nil {
+			return fmt.Errorf("failed to connect to Vault: %w", err)
+		}
+
+		logger.Info("Successfully connected to Vault")
+
+		// TODO: Implement full encryption logic
 		// 1. Validate device exists and is unmounted
 		// 2. Generate encryption key
 		// 3. Store key in Vault
@@ -104,7 +132,7 @@ This command will:
 		// 5. Open LUKS device
 		// 6. Enable systemd service
 
-		return fmt.Errorf("encrypt command not yet implemented")
+		return fmt.Errorf("encryption implementation in progress - Vault connectivity verified")
 	},
 }
 
@@ -122,12 +150,28 @@ This command will:
 		uuid := args[0]
 		logger.Infof("Decrypting device with UUID: %s", uuid)
 
-		// TODO: Implement decryption logic
+		// Test Vault connectivity
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout)
+		defer cancel()
+
+		logger.Debug("Testing Vault connectivity...")
+
+		err := vaultClient.WithRetry(ctx, func() error {
+			return vaultClient.EnsureAuthenticated(ctx)
+		})
+
+		if err != nil {
+			return fmt.Errorf("failed to connect to Vault: %w", err)
+		}
+
+		logger.Info("Successfully connected to Vault")
+
+		// TODO: Implement full decryption logic
 		// 1. Retrieve key from Vault
 		// 2. Open LUKS device
 		// 3. Return mapped device path
 
-		return fmt.Errorf("decrypt command not yet implemented")
+		return fmt.Errorf("decryption implementation in progress - Vault connectivity verified")
 	},
 }
 
