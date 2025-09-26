@@ -63,10 +63,10 @@ func (a *AppRoleAuth) Authenticate(ctx context.Context, client *api.Client) (*ap
 	}
 
 	a.logger.WithFields(logrus.Fields{
-		"policies":        resp.Auth.Policies,
-		"lease_duration":  resp.Auth.LeaseDuration,
-		"renewable":       resp.Auth.Renewable,
-		"accessor":        resp.Auth.Accessor,
+		"policies":       resp.Auth.Policies,
+		"lease_duration": resp.Auth.LeaseDuration,
+		"renewable":      resp.Auth.Renewable,
+		"accessor":       resp.Auth.Accessor,
 	}).Info("AppRole authentication successful")
 
 	return resp, nil
@@ -127,9 +127,9 @@ func (tm *TokenManager) setTokenFromResponse(resp *api.Secret) error {
 	tm.client.SetToken(tm.token)
 
 	tm.logger.WithFields(logrus.Fields{
-		"renewable":    tm.renewable,
-		"ttl_seconds":  tm.ttl.Seconds(),
-		"expires_at":   tm.expiresAt.Format(time.RFC3339),
+		"renewable":   tm.renewable,
+		"ttl_seconds": tm.ttl.Seconds(),
+		"expires_at":  tm.expiresAt.Format(time.RFC3339),
 	}).Info("Token set successfully")
 
 	return nil

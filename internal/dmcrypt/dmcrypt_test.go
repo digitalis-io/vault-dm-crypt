@@ -257,7 +257,7 @@ func TestLUKSManagerFormatDevice(t *testing.T) {
 		// The error could be either device validation or key validation
 		assert.True(t,
 			strings.Contains(err.Error(), "not valid base64") ||
-			strings.Contains(err.Error(), "not a device"))
+				strings.Contains(err.Error(), "not a device"))
 	})
 }
 

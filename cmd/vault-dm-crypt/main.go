@@ -4,23 +4,31 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/axonops/vault-dm-crypt/internal/config"
+	"github.com/axonops/vault-dm-crypt/internal/dmcrypt"
+	"github.com/axonops/vault-dm-crypt/internal/shell"
+	"github.com/axonops/vault-dm-crypt/internal/systemd"
 	"github.com/axonops/vault-dm-crypt/internal/vault"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var (
-	version     = "dev"
-	cfgFile     string
-	verbose     bool
-	debug       bool
-	retry       int
-	logger      *logrus.Logger
-	cfg         *config.Config
-	vaultClient *vault.Client
+	version        = "dev"
+	cfgFile        string
+	verbose        bool
+	debug          bool
+	retry          int
+	logger         *logrus.Logger
+	cfg            *config.Config
+	vaultClient    *vault.Client
+	dmcryptManager *dmcrypt.LUKSManager
+	systemdManager *systemd.Manager
+	validator      *dmcrypt.SystemValidator
 )
 
 func init() {
@@ -79,14 +87,18 @@ This tool provides a secure way to manage encrypted volumes by:
 			"vault_backend": cfg.Vault.Backend,
 		}).Debug("Configuration loaded")
 
-		// Initialize Vault client
+		// Initialize all managers
 		var err2 error
 		vaultClient, err2 = vault.NewClient(&cfg.Vault, logger)
 		if err2 != nil {
 			return fmt.Errorf("failed to initialize Vault client: %w", err2)
 		}
 
-		logger.Debug("Vault client initialized")
+		dmcryptManager = dmcrypt.NewLUKSManager(logger)
+		systemdManager = systemd.NewManager(logger)
+		validator = dmcrypt.NewSystemValidator(logger)
+
+		logger.Debug("All managers initialized successfully")
 
 		return nil
 	},
@@ -106,33 +118,120 @@ This command will:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		device := args[0]
-		logger.Infof("Encrypting device: %s", device)
+		force, _ := cmd.Flags().GetBool("force")
 
-		// Test Vault connectivity
+		logger.WithFields(logrus.Fields{
+			"device": device,
+			"force":  force,
+		}).Info("Starting device encryption")
+
+		// Validate system requirements
+		if err := validator.ValidateSystemRequirements(); err != nil {
+			return fmt.Errorf("system validation failed: %w", err)
+		}
+
+		// Validate device
+		if err := dmcryptManager.ValidateDevice(device); err != nil {
+			return fmt.Errorf("device validation failed: %w", err)
+		}
+
+		// Check if device is mounted
+		mounted, err := dmcryptManager.IsDeviceMounted(device)
+		if err != nil {
+			return fmt.Errorf("failed to check device mount status: %w", err)
+		}
+
+		if mounted && !force {
+			return fmt.Errorf("device %s is currently mounted. Use --force to encrypt anyway", device)
+		}
+
+		// Generate encryption key
+		logger.Debug("Generating encryption key")
+		key, err := dmcryptManager.GenerateKey()
+		if err != nil {
+			return fmt.Errorf("failed to generate encryption key: %w", err)
+		}
+
+		// Generate UUID for the device
+		uuid := generateUUID()
+		logger.WithField("uuid", uuid).Debug("Generated UUID for device")
+
+		// Store key in Vault
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout)
 		defer cancel()
 
-		logger.Debug("Testing Vault connectivity...")
+		logger.Debug("Storing encryption key in Vault")
+		err = vaultClient.WithRetry(ctx, func() error {
+			secretData := map[string]interface{}{
+				"dmcrypt_key": key,
+				"created_at":  time.Now().Format(time.RFC3339),
+				"device":      device,
+			}
 
-		err := vaultClient.WithRetry(ctx, func() error {
-			return vaultClient.EnsureAuthenticated(ctx)
+			hostname, _ := os.Hostname()
+			if hostname != "" {
+				secretData["hostname"] = hostname
+			}
+
+			vaultPath := fmt.Sprintf("vaultlocker/%s", uuid)
+			return vaultClient.WriteSecret(ctx, vaultPath, secretData)
 		})
 
 		if err != nil {
-			return fmt.Errorf("failed to connect to Vault: %w", err)
+			// Clean up the key from memory
+			dmcryptManager.SecureEraseKey(&key)
+			return fmt.Errorf("failed to store key in Vault: %w", err)
 		}
 
-		logger.Info("Successfully connected to Vault")
+		logger.Info("Encryption key stored in Vault successfully")
 
-		// TODO: Implement full encryption logic
-		// 1. Validate device exists and is unmounted
-		// 2. Generate encryption key
-		// 3. Store key in Vault
-		// 4. Format device with LUKS
-		// 5. Open LUKS device
-		// 6. Enable systemd service
+		// Format device with LUKS
+		logger.Info("Formatting device with LUKS encryption")
+		err = dmcryptManager.FormatDevice(device, key, uuid)
+		if err != nil {
+			dmcryptManager.SecureEraseKey(&key)
+			return fmt.Errorf("failed to format device with LUKS: %w", err)
+		}
 
-		return fmt.Errorf("encryption implementation in progress - Vault connectivity verified")
+		logger.Info("Device formatted with LUKS successfully")
+
+		// Open the LUKS device
+		deviceName := dmcryptManager.GenerateDeviceName(uuid)
+		logger.WithField("device_name", deviceName).Info("Opening LUKS device")
+
+		err = dmcryptManager.OpenDevice(device, key, deviceName)
+		if err != nil {
+			dmcryptManager.SecureEraseKey(&key)
+			return fmt.Errorf("failed to open LUKS device: %w", err)
+		}
+
+		mappedDevice := dmcryptManager.GetMappedDevicePath(deviceName)
+		logger.WithField("mapped_device", mappedDevice).Info("LUKS device opened successfully")
+
+		// Clean up the key from memory now that it's no longer needed
+		dmcryptManager.SecureEraseKey(&key)
+
+		// Enable systemd service for auto-decrypt on boot
+		logger.Info("Enabling systemd service for automatic decryption on boot")
+		err = systemdManager.EnableDecryptService(uuid)
+		if err != nil {
+			logger.WithError(err).Warn("Failed to enable systemd service - device will need manual decryption on boot")
+		} else {
+			logger.Info("Systemd service enabled successfully")
+		}
+
+		logger.WithFields(logrus.Fields{
+			"device":        device,
+			"uuid":          uuid,
+			"mapped_device": mappedDevice,
+		}).Info("Device encryption completed successfully")
+
+		fmt.Printf("Device encrypted successfully:\n")
+		fmt.Printf("  UUID: %s\n", uuid)
+		fmt.Printf("  Mapped device: %s\n", mappedDevice)
+		fmt.Printf("  Vault path: secret/vaultlocker/%s\n", uuid)
+
+		return nil
 	},
 }
 
@@ -148,30 +247,108 @@ This command will:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		uuid := args[0]
-		logger.Infof("Decrypting device with UUID: %s", uuid)
+		customName, _ := cmd.Flags().GetString("name")
 
-		// Test Vault connectivity
+		logger.WithFields(logrus.Fields{
+			"uuid":        uuid,
+			"custom_name": customName,
+		}).Info("Starting device decryption")
+
+		// Validate system requirements
+		if err := validator.ValidateSystemRequirements(); err != nil {
+			return fmt.Errorf("system validation failed: %w", err)
+		}
+
+		// Retrieve key from Vault
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout)
 		defer cancel()
 
-		logger.Debug("Testing Vault connectivity...")
-
+		logger.Debug("Retrieving encryption key from Vault")
+		var key string
 		err := vaultClient.WithRetry(ctx, func() error {
-			return vaultClient.EnsureAuthenticated(ctx)
+			vaultPath := fmt.Sprintf("vaultlocker/%s", uuid)
+			secretData, err := vaultClient.ReadSecret(ctx, vaultPath)
+			if err != nil {
+				return err
+			}
+
+			dmcryptKey, exists := secretData["dmcrypt_key"]
+			if !exists {
+				return fmt.Errorf("dmcrypt_key not found in secret")
+			}
+
+			keyStr, ok := dmcryptKey.(string)
+			if !ok {
+				return fmt.Errorf("dmcrypt_key is not a string")
+			}
+
+			key = keyStr
+			return nil
 		})
 
 		if err != nil {
-			return fmt.Errorf("failed to connect to Vault: %w", err)
+			return fmt.Errorf("failed to retrieve key from Vault: %w", err)
 		}
 
-		logger.Info("Successfully connected to Vault")
+		logger.Info("Encryption key retrieved from Vault successfully")
 
-		// TODO: Implement full decryption logic
-		// 1. Retrieve key from Vault
-		// 2. Open LUKS device
-		// 3. Return mapped device path
+		// Validate the key format
+		if err := dmcryptManager.ValidateKeyFormat(key); err != nil {
+			dmcryptManager.SecureEraseKey(&key)
+			return fmt.Errorf("invalid key format: %w", err)
+		}
 
-		return fmt.Errorf("decryption implementation in progress - Vault connectivity verified")
+		// Generate device name
+		var deviceName string
+		if customName != "" {
+			deviceName = customName
+		} else {
+			deviceName = dmcryptManager.GenerateDeviceName(uuid)
+		}
+
+		logger.WithField("device_name", deviceName).Debug("Using device name")
+
+		// Find the device by UUID
+		devicePath, err := findDeviceByUUID(uuid)
+		if err != nil {
+			dmcryptManager.SecureEraseKey(&key)
+			return fmt.Errorf("failed to find device with UUID %s: %w", uuid, err)
+		}
+
+		logger.WithField("device_path", devicePath).Debug("Found device")
+
+		// Check if device is already open
+		mappedDevice := dmcryptManager.GetMappedDevicePath(deviceName)
+		if _, err := os.Stat(mappedDevice); err == nil {
+			dmcryptManager.SecureEraseKey(&key)
+			logger.WithField("mapped_device", mappedDevice).Info("Device is already decrypted")
+			fmt.Printf("Device already decrypted: %s\n", mappedDevice)
+			return nil
+		}
+
+		// Open the LUKS device
+		logger.Info("Opening LUKS device")
+		err = dmcryptManager.OpenDevice(devicePath, key, deviceName)
+		if err != nil {
+			dmcryptManager.SecureEraseKey(&key)
+			return fmt.Errorf("failed to open LUKS device: %w", err)
+		}
+
+		// Clean up the key from memory
+		dmcryptManager.SecureEraseKey(&key)
+
+		logger.WithFields(logrus.Fields{
+			"device_path":   devicePath,
+			"uuid":          uuid,
+			"mapped_device": mappedDevice,
+		}).Info("Device decryption completed successfully")
+
+		fmt.Printf("Device decrypted successfully:\n")
+		fmt.Printf("  UUID: %s\n", uuid)
+		fmt.Printf("  Device: %s\n", devicePath)
+		fmt.Printf("  Mapped device: %s\n", mappedDevice)
+
+		return nil
 	},
 }
 
@@ -233,4 +410,58 @@ func configureLogger(logConfig config.LoggingConfig) error {
 	}
 
 	return nil
+}
+
+// generateUUID generates a new UUID for the device
+func generateUUID() string {
+	// Generate a simple UUID-like string
+	// In a real implementation, you might want to use a proper UUID library
+	// or generate based on device characteristics
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		time.Now().Unix(),
+		time.Now().Nanosecond()&0xFFFF,
+		(time.Now().Nanosecond()>>16)&0xFFFF,
+		(time.Now().Nanosecond()>>32)&0xFFFF,
+		time.Now().UnixNano()&0xFFFFFFFFFFFF)
+}
+
+// findDeviceByUUID finds a device path by its UUID
+func findDeviceByUUID(uuid string) (string, error) {
+	logger.WithField("uuid", uuid).Debug("Looking for device by UUID")
+
+	// Try the standard UUID path first
+	uuidPath := fmt.Sprintf("/dev/disk/by-uuid/%s", uuid)
+	if _, err := os.Stat(uuidPath); err == nil {
+		// Follow the symlink to get the actual device path
+		realPath, err := os.Readlink(uuidPath)
+		if err == nil {
+			// Convert relative path to absolute
+			if !strings.HasPrefix(realPath, "/") {
+				realPath = filepath.Join("/dev/disk/by-uuid", realPath)
+				realPath, _ = filepath.Abs(realPath)
+			}
+			logger.WithFields(logrus.Fields{
+				"uuid":        uuid,
+				"uuid_path":   uuidPath,
+				"device_path": realPath,
+			}).Debug("Found device via UUID symlink")
+			return realPath, nil
+		}
+	}
+
+	// If UUID path doesn't work, try using blkid
+	executor := shell.NewExecutor(logger)
+	output, err := executor.Execute("blkid", "-U", uuid)
+	if err == nil {
+		devicePath := strings.TrimSpace(output)
+		if devicePath != "" {
+			logger.WithFields(logrus.Fields{
+				"uuid":        uuid,
+				"device_path": devicePath,
+			}).Debug("Found device via blkid")
+			return devicePath, nil
+		}
+	}
+
+	return "", fmt.Errorf("device with UUID %s not found", uuid)
 }
