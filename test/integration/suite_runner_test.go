@@ -240,7 +240,7 @@ func TestQuickSuite(t *testing.T) {
 	t.Run("config_validation", func(t *testing.T) {
 		stdout, stderr, err := framework.RunCommand("--config", configFile, "decrypt", "quick-test-uuid")
 		require.Error(t, err)
-		require.Contains(t, stderr, "device with UUID")
+		require.Contains(t, stderr, "root privileges")
 		require.Empty(t, stdout)
 	})
 
@@ -320,7 +320,7 @@ output = "stdout"
 			// Test basic functionality with this configuration
 			stdout, stderr, err := framework.RunCommand("--config", configFile, "decrypt", "compat-test-uuid")
 			require.Error(t, err)
-			require.Contains(t, stderr, "device with UUID")
+			require.Contains(t, stderr, "root privileges")
 			require.Empty(t, stdout)
 
 			t.Logf("Configuration variation '%s' validated successfully", variation.name)

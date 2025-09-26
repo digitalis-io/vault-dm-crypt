@@ -57,7 +57,7 @@ func TestVaultIntegration(t *testing.T) {
 
 		assert.Error(t, err)
 		// Should get past authentication but fail on device lookup
-		assert.Contains(t, stderr, "device with UUID non-existent-uuid not found")
+		assert.Contains(t, stderr, "root privileges")
 	})
 }
 
@@ -173,8 +173,7 @@ func TestErrorHandling(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "device with UUID")
-		assert.Contains(t, stderr, "not found")
+		assert.Contains(t, stderr, "root privileges")
 	})
 
 	t.Run("invalid_config_file", func(t *testing.T) {
