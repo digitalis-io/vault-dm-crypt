@@ -2,7 +2,6 @@ package vault
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -226,9 +225,46 @@ func (c *Client) IsTokenExpiringWithin(threshold time.Duration) bool {
 	return c.tokenExp.Before(expiryThreshold)
 }
 
+// RenewToken attempts to renew the current token
+func (c *Client) RenewToken(ctx context.Context) error {
+	c.logger.Debug("Attempting to renew token")
+
+	// Check if we have a token to renew
+	if c.token == "" {
+		return errors.New("no token to renew")
+	}
+
+	// Attempt to renew the token
+	resp, err := c.client.Auth().Token().RenewSelfWithContext(ctx, 0)
+	if err != nil {
+		return errors.Wrap(err, "failed to renew token")
+	}
+
+	if resp == nil || resp.Auth == nil {
+		return errors.New("empty response from token renewal")
+	}
+
+	// Update token expiration time
+	if resp.Auth.LeaseDuration > 0 {
+		c.tokenExp = time.Now().Add(time.Duration(resp.Auth.LeaseDuration) * time.Second)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"new_lease_duration": resp.Auth.LeaseDuration,
+		"expires_at":         c.tokenExp.Format(time.RFC3339),
+		"renewable":          resp.Auth.Renewable,
+	}).Info("Successfully renewed token")
+
+	return nil
+}
+
 // RefreshSecretID generates a new secret ID for the AppRole
-// This requires the role to have the ability to generate its own secret IDs
+// This requires the AppRoleName to be configured and the role to have the ability to generate its own secret IDs
 func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
+	if c.config.AppRoleName == "" {
+		return "", errors.New("approle_name not configured - required for generating new secret IDs")
+	}
+
 	c.logger.Debug("Attempting to refresh AppRole secret ID")
 
 	// First, ensure we have a valid token
@@ -236,12 +272,12 @@ func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
 		return "", errors.Wrap(err, "failed to authenticate before refreshing secret ID")
 	}
 
-	// Generate a new secret ID for the AppRole
-	path := fmt.Sprintf("auth/approle/role/%s/secret-id", c.config.AppRole)
+	// Generate a new secret ID for the AppRole using the role name
+	path := fmt.Sprintf("auth/approle/role/%s/secret-id", c.config.AppRoleName)
 
 	resp, err := c.client.Logical().WriteWithContext(ctx, path, nil)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to generate new secret ID")
+		return "", errors.Wrap(err, fmt.Sprintf("failed to generate new secret ID (role name: %s)", c.config.AppRoleName))
 	}
 
 	if resp == nil || resp.Data == nil {
@@ -255,11 +291,10 @@ func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
 
 	// Get secret ID metadata for logging
 	secretIDAccessor, _ := resp.Data["secret_id_accessor"].(string)
-	secretIDTTL, _ := resp.Data["secret_id_ttl"].(json.Number)
 
 	c.logger.WithFields(logrus.Fields{
 		"secret_id_accessor": secretIDAccessor,
-		"secret_id_ttl":      secretIDTTL,
+		"role_name":          c.config.AppRoleName,
 	}).Info("Successfully generated new secret ID")
 
 	return secretID, nil

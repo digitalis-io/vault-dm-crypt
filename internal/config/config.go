@@ -22,7 +22,8 @@ type Config struct {
 type VaultConfig struct {
 	URL            string `mapstructure:"url"`
 	Backend        string `mapstructure:"backend"`
-	AppRole        string `mapstructure:"approle"`
+	AppRole        string `mapstructure:"approle"`      // The role_id (UUID)
+	AppRoleName    string `mapstructure:"approle_name"` // Optional: The role name for generating new secret IDs
 	SecretID       string `mapstructure:"secret_id"`
 	CABundle       string `mapstructure:"ca_bundle"`
 	TimeoutSecs    int    `mapstructure:"timeout"`

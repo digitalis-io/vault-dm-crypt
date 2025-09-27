@@ -10,8 +10,12 @@ backend = "secret"
 
 # AppRole authentication credentials
 # These should be provided by your Vault administrator
-approle = "your-approle-id-here"
+approle = "your-approle-id-here"  # The role_id (UUID)
 secret_id = "your-secret-id-here"
+
+# Optional: AppRole name for generating new secret IDs
+# Only needed if you want to use 'refresh-auth --refresh-secret-id'
+# approle_name = "your-approle-name"
 
 # Path to CA certificate bundle for TLS verification
 # Uncomment and set this if using HTTPS with custom CA
