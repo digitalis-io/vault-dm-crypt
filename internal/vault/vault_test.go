@@ -434,14 +434,14 @@ func TestReadSecretErrorConditions(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.FatalLevel)
 
-	config := &config.VaultConfig{
+	cfg := &config.VaultConfig{
 		URL:      "http://localhost:8200",
 		Backend:  "secret",
 		AppRole:  "test-role",
 		SecretID: "test-secret",
 	}
 
-	client, err := NewClient(config, logger)
+	client, err := NewClient(cfg, logger)
 	require.NoError(t, err)
 
 	t.Run("authentication error", func(t *testing.T) {
@@ -693,7 +693,7 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 	logger.SetLevel(logrus.FatalLevel)
 
 	t.Run("authentication with invalid credentials", func(t *testing.T) {
-		config := &config.VaultConfig{
+		cfg := &config.VaultConfig{
 			URL:            "http://localhost:8200",
 			Backend:        "secret",
 			AppRole:        "invalid-role",
@@ -702,7 +702,7 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 			RetryDelaySecs: 1,
 		}
 
-		client, err := NewClient(config, logger)
+		client, err := NewClient(cfg, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -712,7 +712,7 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 	})
 
 	t.Run("authentication with empty role ID", func(t *testing.T) {
-		config := &config.VaultConfig{
+		cfg := &config.VaultConfig{
 			URL:            "http://localhost:8200",
 			Backend:        "secret",
 			AppRole:        "", // Empty role ID
@@ -721,7 +721,7 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 			RetryDelaySecs: 1,
 		}
 
-		client, err := NewClient(config, logger)
+		client, err := NewClient(cfg, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -732,7 +732,7 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 	})
 
 	t.Run("authentication with empty secret ID", func(t *testing.T) {
-		config := &config.VaultConfig{
+		cfg := &config.VaultConfig{
 			URL:            "http://localhost:8200",
 			Backend:        "secret",
 			AppRole:        "test-role",
@@ -741,7 +741,7 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 			RetryDelaySecs: 1,
 		}
 
-		client, err := NewClient(config, logger)
+		client, err := NewClient(cfg, logger)
 		require.NoError(t, err)
 
 		ctx := context.Background()

@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -599,7 +600,8 @@ func TestEdgeCaseHandling(t *testing.T) {
 				assert.Error(t, err) // Should be interrupted
 
 				// Process should exit cleanly
-				if exitError, ok := err.(*exec.ExitError); ok {
+				var exitError *exec.ExitError
+				if errors.As(err, &exitError) {
 					// Check exit code is reasonable
 					assert.NotEqual(t, -1, exitError.ExitCode())
 				}

@@ -47,16 +47,16 @@ func TestPerformanceCharacteristics(t *testing.T) {
 
 		// Calculate statistics
 		var total time.Duration
-		min := startupTimes[0]
-		max := startupTimes[0]
+		minDur := startupTimes[0]
+		maxDur := startupTimes[0]
 
 		for _, duration := range startupTimes {
 			total += duration
-			if duration < min {
-				min = duration
+			if duration < minDur {
+				minDur = duration
 			}
-			if duration > max {
-				max = duration
+			if duration > maxDur {
+				maxDur = duration
 			}
 		}
 
@@ -64,12 +64,12 @@ func TestPerformanceCharacteristics(t *testing.T) {
 
 		t.Logf("Startup performance over %d runs:", numRuns)
 		t.Logf("  Average: %v", average)
-		t.Logf("  Min: %v", min)
-		t.Logf("  Max: %v", max)
+		t.Logf("  Min: %v", minDur)
+		t.Logf("  Max: %v", maxDur)
 
 		// Performance assertions
 		assert.Less(t, average, 5*time.Second, "Average startup time should be reasonable")
-		assert.Less(t, max, 10*time.Second, "Maximum startup time should be bounded")
+		assert.Less(t, maxDur, 10*time.Second, "Maximum startup time should be bounded")
 	})
 
 	t.Run("vault_authentication_performance", func(t *testing.T) {
@@ -252,16 +252,16 @@ func TestPerformanceCharacteristics(t *testing.T) {
 
 		// Calculate statistics
 		var total time.Duration
-		min := configTimes[0]
-		max := configTimes[0]
+		minDur := configTimes[0]
+		maxDur := configTimes[0]
 
 		for _, duration := range configTimes {
 			total += duration
-			if duration < min {
-				min = duration
+			if duration < minDur {
+				minDur = duration
 			}
-			if duration > max {
-				max = duration
+			if duration > maxDur {
+				maxDur = duration
 			}
 		}
 
@@ -269,8 +269,8 @@ func TestPerformanceCharacteristics(t *testing.T) {
 
 		t.Logf("Configuration parsing performance over %d runs:", numTests)
 		t.Logf("  Average: %v", average)
-		t.Logf("  Min: %v", min)
-		t.Logf("  Max: %v", max)
+		t.Logf("  Min: %v", minDur)
+		t.Logf("  Max: %v", maxDur)
 
 		// Configuration parsing should be fast
 		assert.Less(t, average, 2*time.Second, "Configuration parsing should be fast")
