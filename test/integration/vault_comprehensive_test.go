@@ -300,7 +300,7 @@ func TestVaultFailureScenarios(t *testing.T) {
 			"decrypt", "pre-restart-test-uuid",
 		)
 		assert.Error(t, err) // Expected: UUID not found
-		assert.Contains(t, stderr, "device with UUID")
+		assert.Contains(t, stderr, framework.ExpectDecryptError())
 
 		// Restart Vault container (simulate server restart)
 		// Note: This is a destructive test that may affect other concurrent tests
@@ -315,7 +315,7 @@ func TestVaultFailureScenarios(t *testing.T) {
 			"decrypt", "post-restart-test-uuid",
 		)
 		assert.Error(t, err) // Expected: UUID not found
-		assert.Contains(t, stderr, "device with UUID")
+		assert.Contains(t, stderr, framework.ExpectDecryptError())
 	})
 
 	t.Run("network_interruption_simulation", func(t *testing.T) {
@@ -350,7 +350,7 @@ func TestVaultFailureScenarios(t *testing.T) {
 				)
 
 				// All should fail with "device not found" but not with Vault errors
-				if err != nil && strings.Contains(stderr, "device with UUID") {
+				if err != nil && strings.Contains(stderr, framework.ExpectDecryptError()) {
 					done <- nil
 				} else {
 					done <- fmt.Errorf("operation %d failed unexpectedly: %v - %s", id, err, stderr)

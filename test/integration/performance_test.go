@@ -90,7 +90,7 @@ func TestPerformanceCharacteristics(t *testing.T) {
 
 			// Should fail with device not found, but authentication should succeed
 			assert.Error(t, err)
-			assert.Contains(t, stderr, "device with UUID")
+			assert.Contains(t, stderr, framework.ExpectDecryptError())
 			assert.Empty(t, stdout)
 		}
 
@@ -134,7 +134,7 @@ func TestPerformanceCharacteristics(t *testing.T) {
 
 						results <- opDuration
 
-						if err != nil && contains(stderr, "device with UUID") {
+						if err != nil && contains(stderr, framework.ExpectDecryptError()) {
 							errors <- nil // Expected error
 						} else {
 							errors <- fmt.Errorf("unexpected result: %v - %s - %s", err, stderr, stdout)
@@ -200,7 +200,7 @@ func TestPerformanceCharacteristics(t *testing.T) {
 			)
 
 			assert.Error(t, err)
-			assert.Contains(t, stderr, "device with UUID")
+			assert.Contains(t, stderr, framework.ExpectDecryptError())
 			assert.Empty(t, stdout)
 
 			// Force garbage collection periodically
@@ -304,7 +304,7 @@ func TestStressScenarios(t *testing.T) {
 				"decrypt", fmt.Sprintf("stress-test-%d", i),
 			)
 
-			if err != nil && contains(stderr, "device with UUID") {
+			if err != nil && contains(stderr, framework.ExpectDecryptError()) {
 				successCount++
 			} else {
 				errorCount++
@@ -354,7 +354,7 @@ func TestStressScenarios(t *testing.T) {
 							"decrypt", fmt.Sprintf("burst-test-%d-%d", burstSize, id),
 						)
 
-						success := err != nil && contains(stderr, "device with UUID")
+						success := err != nil && contains(stderr, framework.ExpectDecryptError())
 						results <- success
 					}(i)
 				}
@@ -402,7 +402,7 @@ func TestStressScenarios(t *testing.T) {
 
 			operationCount++
 
-			if err != nil && contains(stderr, "device with UUID") {
+			if err != nil && contains(stderr, framework.ExpectDecryptError()) {
 				successCount++
 			} else {
 				errorCount++
@@ -488,7 +488,7 @@ func TestStressScenarios(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "device with UUID")
+		assert.Contains(t, stderr, framework.ExpectDecryptError())
 		assert.Empty(t, stdout)
 
 		t.Logf("System recovered successfully after resource exhaustion")

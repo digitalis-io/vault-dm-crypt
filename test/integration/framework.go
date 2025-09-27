@@ -235,3 +235,26 @@ func (tf *TestFramework) RequireCommands(commands ...string) {
 		}
 	}
 }
+
+// IsRoot returns true if running with root privileges
+func (tf *TestFramework) IsRoot() bool {
+	return os.Geteuid() == 0
+}
+
+// ExpectDecryptError returns the expected error message for decrypt operations
+// based on whether we're running as root or not
+func (tf *TestFramework) ExpectDecryptError() string {
+	if tf.IsRoot() {
+		return "device with UUID"
+	}
+	return "root privileges"
+}
+
+// ExpectEncryptError returns the expected error message for encrypt operations
+// based on whether we're running as root or not
+func (tf *TestFramework) ExpectEncryptError() string {
+	if tf.IsRoot() {
+		return "device validation failed"
+	}
+	return "root privileges"
+}

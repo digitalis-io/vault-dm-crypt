@@ -233,7 +233,7 @@ level = "info"
 				)
 
 				// All should fail with device not found, not with resource errors
-				if err != nil && strings.Contains(stderr, "device with UUID") {
+				if err != nil && strings.Contains(stderr, framework.ExpectDecryptError()) {
 					done <- nil
 				} else if err != nil && (strings.Contains(stderr, "too many open files") ||
 					strings.Contains(stderr, "resource temporarily unavailable") ||
@@ -430,7 +430,7 @@ func TestEdgeCaseHandling(t *testing.T) {
 
 				if tc.valid {
 					// Should fail with device not found, not input validation error
-					assert.Contains(t, stderr, "device with UUID")
+					assert.Contains(t, stderr, framework.ExpectDecryptError())
 				} else {
 					// Should handle invalid input gracefully
 					assert.NotContains(t, stderr, "panic")
@@ -484,7 +484,7 @@ func TestEdgeCaseHandling(t *testing.T) {
 					assert.NotContains(t, stderr, "runtime error")
 				} else {
 					// Other env vars shouldn't affect the operation
-					assert.Contains(t, stderr, "device with UUID")
+					assert.Contains(t, stderr, framework.ExpectDecryptError())
 				}
 			})
 		}
@@ -504,7 +504,7 @@ func TestEdgeCaseHandling(t *testing.T) {
 					"decrypt", uuid,
 				)
 
-				if err != nil && strings.Contains(stderr, "device with UUID") {
+				if err != nil && strings.Contains(stderr, framework.ExpectDecryptError()) {
 					done <- "success"
 				} else {
 					done <- fmt.Sprintf("failure: %v - %s - %s", err, stderr, stdout)
@@ -544,7 +544,7 @@ func TestEdgeCaseHandling(t *testing.T) {
 			)
 
 			assert.Error(t, err)
-			assert.Contains(t, stderr, "device with UUID")
+			assert.Contains(t, stderr, framework.ExpectDecryptError())
 			assert.Empty(t, stdout)
 
 			// Check for memory-related errors

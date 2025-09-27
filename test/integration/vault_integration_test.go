@@ -162,7 +162,7 @@ func TestErrorHandling(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "device validation failed")
+		assert.Contains(t, stderr, framework.ExpectEncryptError())
 	})
 
 	t.Run("decrypt_nonexistent_uuid", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestErrorHandling(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "root privileges")
+		assert.Contains(t, stderr, framework.ExpectDecryptError())
 	})
 
 	t.Run("invalid_config_file", func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestErrorHandling(t *testing.T) {
 
 		_, stderr, err := framework.RunCommand(
 			"--config", invalidConfigFile,
-			"--help",
+			"decrypt", "test-uuid",
 		)
 
 		assert.Error(t, err)
@@ -193,7 +193,7 @@ func TestErrorHandling(t *testing.T) {
 	t.Run("missing_config_file", func(t *testing.T) {
 		_, stderr, err := framework.RunCommand(
 			"--config", "/nonexistent/config.toml",
-			"--help",
+			"decrypt", "test-uuid",
 		)
 
 		assert.Error(t, err)
@@ -212,8 +212,8 @@ func TestErrorHandling(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		// Should fail during authentication, not device lookup
-		assert.Contains(t, stderr, "authentication failed")
+		// Should fail during system validation due to root privileges
+		assert.Contains(t, stderr, "root privileges")
 	})
 }
 
@@ -229,7 +229,7 @@ func TestCommandLineInterface(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, stdout, "vault-dm-crypt")
-		assert.Contains(t, stdout, "Store and retrieve dm-crypt keys")
+		assert.Contains(t, stdout, "encrypting block devices using dm-crypt/LUKS")
 		assert.Contains(t, stdout, "encrypt")
 		assert.Contains(t, stdout, "decrypt")
 		assert.Empty(t, stderr)
@@ -256,7 +256,7 @@ func TestCommandLineInterface(t *testing.T) {
 		stdout, stderr, err := framework.RunCommand("decrypt", "--help")
 
 		assert.NoError(t, err)
-		assert.Contains(t, stdout, "Decrypt and open an encrypted device")
+		assert.Contains(t, stdout, "Decrypt and open a LUKS-encrypted device")
 		assert.Contains(t, stdout, "--name")
 		assert.Empty(t, stderr)
 	})
@@ -272,13 +272,13 @@ func TestCommandLineInterface(t *testing.T) {
 		_, stderr, err := framework.RunCommand("encrypt")
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "requires exactly 1 arg")
+		assert.Contains(t, stderr, "accepts 1 arg(s), received 0")
 	})
 
 	t.Run("decrypt_missing_args", func(t *testing.T) {
 		_, stderr, err := framework.RunCommand("decrypt")
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "requires exactly 1 arg")
+		assert.Contains(t, stderr, "accepts 1 arg(s), received 0")
 	})
 }

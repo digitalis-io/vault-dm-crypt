@@ -37,8 +37,7 @@ func TestAdvancedScenarios(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "device with UUID")
-		assert.Contains(t, stderr, "not found")
+		assert.Contains(t, stderr, framework.ExpectDecryptError())
 	})
 
 	t.Run("configuration_hot_reload", func(t *testing.T) {
@@ -73,8 +72,7 @@ output = "stdout"
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "device with UUID")
-		assert.Contains(t, stderr, "not found")
+		assert.Contains(t, stderr, framework.ExpectDecryptError())
 	})
 
 	t.Run("environment_variable_override", func(t *testing.T) {
@@ -119,7 +117,7 @@ func TestFailureRecovery(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, "device with UUID")
+		assert.Contains(t, stderr, framework.ExpectDecryptError())
 	})
 
 	t.Run("invalid_configuration_recovery", func(t *testing.T) {
@@ -168,7 +166,7 @@ secret_id = "invalid-secret"
 
 		// Should get device not found error
 		if err != nil {
-			assert.Contains(t, string(output), "device with UUID")
+			assert.Contains(t, string(output), framework.ExpectDecryptError())
 		}
 	})
 
@@ -186,7 +184,7 @@ secret_id = "invalid-secret"
 				)
 
 				// All should fail with device not found (expected)
-				if err != nil && strings.Contains(stderr, "device with UUID") {
+				if err != nil && strings.Contains(stderr, framework.ExpectDecryptError()) {
 					done <- nil
 				} else {
 					done <- fmt.Errorf("unexpected result for operation %d: %v", id, err)
