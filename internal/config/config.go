@@ -149,6 +149,52 @@ func setDefaults(v *viper.Viper, config *Config) {
 	v.SetDefault("logging.output", config.Logging.Output)
 }
 
+// UpdateSecretID updates the secret_id in the config file
+func UpdateSecretID(configPath string, newSecretID string) error {
+	// Read the entire file as text to preserve formatting
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return errors.Wrap(err, "failed to read config file")
+	}
+
+	// Parse the TOML to ensure we have valid structure
+	v := viper.New()
+	v.SetConfigType("toml")
+	if err := v.ReadConfig(strings.NewReader(string(content))); err != nil {
+		return errors.Wrap(err, "failed to parse config file")
+	}
+
+	// Update the secret_id value
+	v.Set("vault.secret_id", newSecretID)
+
+	// Write back to file preserving as much formatting as possible
+	// We'll use viper's WriteConfig but to a temporary location first
+	tempFile, err := os.CreateTemp(filepath.Dir(configPath), ".config-*.toml")
+	if err != nil {
+		return errors.Wrap(err, "failed to create temp file")
+	}
+	defer os.Remove(tempFile.Name())
+	defer tempFile.Close()
+
+	// Write the updated config
+	if err := v.WriteConfigAs(tempFile.Name()); err != nil {
+		return errors.Wrap(err, "failed to write updated config")
+	}
+
+	// Read the temp file
+	updatedContent, err := os.ReadFile(tempFile.Name())
+	if err != nil {
+		return errors.Wrap(err, "failed to read updated config")
+	}
+
+	// Write to the actual config file
+	if err := os.WriteFile(configPath, updatedContent, 0600); err != nil {
+		return errors.Wrap(err, "failed to write config file")
+	}
+
+	return nil
+}
+
 // Validate checks if the configuration is valid
 func (c *Config) Validate() error {
 	// Validate Vault configuration

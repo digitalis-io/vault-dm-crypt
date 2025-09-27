@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -354,6 +355,125 @@ This command will:
 	},
 }
 
+var refreshAuthCmd = &cobra.Command{
+	Use:   "refresh-auth",
+	Short: "Refresh AppRole authentication if expiring soon",
+	Long: `Check if the AppRole token is expiring and refresh the secret ID if needed.
+
+This command will:
+1. Check if the current token will expire within the specified threshold
+2. If expiring soon, generate a new secret ID
+3. Update the config file with the new secret ID if it has changed`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get the expiry threshold from flags or environment
+		thresholdHours, _ := cmd.Flags().GetFloat64("threshold-hours")
+
+		// Check environment variable if not set via flag
+		if !cmd.Flags().Changed("threshold-hours") {
+			if envThreshold := os.Getenv("VAULT_DM_CRYPT_REFRESH_THRESHOLD_HOURS"); envThreshold != "" {
+				if parsed, err := time.ParseDuration(envThreshold + "h"); err == nil {
+					thresholdHours = parsed.Hours()
+				}
+			}
+		}
+
+		updateConfig, _ := cmd.Flags().GetBool("update-config")
+		forceRefresh, _ := cmd.Flags().GetBool("force")
+
+		threshold := time.Duration(thresholdHours * float64(time.Hour))
+
+		logger.WithFields(logrus.Fields{
+			"threshold_hours": thresholdHours,
+			"update_config":   updateConfig,
+			"force_refresh":   forceRefresh,
+		}).Info("Checking authentication status")
+
+		// Create context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout())
+		defer cancel()
+
+		// First authenticate to get current token info
+		if err := vaultClient.Authenticate(ctx); err != nil {
+			return fmt.Errorf("failed to authenticate: %w", err)
+		}
+
+		// Get token information
+		tokenInfo, err := vaultClient.GetTokenInfo(ctx)
+		if err != nil {
+			logger.WithError(err).Warn("Failed to get token info, will attempt refresh")
+		} else {
+			// Log token information
+			ttl, _ := tokenInfo["ttl"].(json.Number)
+			creationTime, _ := tokenInfo["creation_time"].(string)
+			renewable, _ := tokenInfo["renewable"].(bool)
+
+			logger.WithFields(logrus.Fields{
+				"ttl_seconds":   ttl,
+				"creation_time": creationTime,
+				"renewable":     renewable,
+				"expires_at":    vaultClient.GetTokenExpiry().Format(time.RFC3339),
+			}).Info("Current token information")
+		}
+
+		// Check if token is expiring within threshold
+		needsRefresh := forceRefresh || vaultClient.IsTokenExpiringWithin(threshold)
+
+		if !needsRefresh {
+			logger.Info("Token is not expiring soon, no refresh needed")
+			fmt.Printf("Token valid until: %s\n", vaultClient.GetTokenExpiry().Format(time.RFC3339))
+			return nil
+		}
+
+		logger.Info("Token expiring soon or forced refresh requested, generating new secret ID")
+
+		// Generate a new secret ID
+		newSecretID, err := vaultClient.RefreshSecretID(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to refresh secret ID: %w", err)
+		}
+
+		logger.Info("Successfully generated new secret ID")
+
+		// Update the config file if requested
+		if updateConfig {
+			logger.WithField("config_path", cfgFile).Info("Updating config file with new secret ID")
+
+			if err := config.UpdateSecretID(cfgFile, newSecretID); err != nil {
+				return fmt.Errorf("failed to update config file: %w", err)
+			}
+
+			logger.Info("Config file updated successfully")
+			fmt.Printf("Config file updated: %s\n", cfgFile)
+		} else {
+			// Output the new secret ID for manual configuration
+			fmt.Printf("New secret ID generated (not saved to config):\n%s\n", newSecretID)
+			fmt.Println("\nTo update your config file manually, set:")
+			fmt.Printf("  vault.secret_id = \"%s\"\n", newSecretID)
+		}
+
+		// Re-authenticate with the new secret ID to verify it works
+		cfg.Vault.SecretID = newSecretID
+		testClient, err := vault.NewClient(&cfg.Vault, logger)
+		if err != nil {
+			return fmt.Errorf("failed to create test client: %w", err)
+		}
+		defer func() {
+			if err := testClient.Close(); err != nil {
+				logger.WithError(err).Warn("Failed to close test client")
+			}
+		}()
+
+		if err := testClient.Authenticate(ctx); err != nil {
+			return fmt.Errorf("failed to authenticate with new secret ID: %w", err)
+		}
+
+		logger.Info("Successfully authenticated with new secret ID")
+		fmt.Println("Authentication refresh completed successfully")
+
+		return nil
+	},
+}
+
 func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "/etc/vault-dm-crypt/config.toml", "config file path")
@@ -364,12 +484,18 @@ func init() {
 	// Add subcommands
 	rootCmd.AddCommand(encryptCmd)
 	rootCmd.AddCommand(decryptCmd)
+	rootCmd.AddCommand(refreshAuthCmd)
 
 	// Add flags specific to encrypt command
 	encryptCmd.Flags().BoolP("force", "f", false, "force encryption even if device contains data")
 
 	// Add flags specific to decrypt command
 	decryptCmd.Flags().StringP("name", "n", "", "custom name for the device mapping")
+
+	// Add flags specific to refresh-auth command
+	refreshAuthCmd.Flags().Float64P("threshold-hours", "t", 1.0, "hours before expiry to trigger refresh")
+	refreshAuthCmd.Flags().BoolP("update-config", "u", false, "update config file with new secret ID")
+	refreshAuthCmd.Flags().BoolP("force", "f", false, "force refresh even if not expiring")
 }
 
 // configureLogger sets up the logger based on configuration

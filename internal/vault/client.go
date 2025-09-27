@@ -2,6 +2,7 @@ package vault
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -226,6 +227,79 @@ func (c *Client) WithRetry(ctx context.Context, operation func() error) error {
 	}
 
 	return errors.Wrap(lastErr, fmt.Sprintf("operation failed after %d retries", c.config.RetryMax))
+}
+
+// GetTokenExpiry returns the token expiration time
+func (c *Client) GetTokenExpiry() time.Time {
+	return c.tokenExp
+}
+
+// IsTokenExpiringWithin checks if the token will expire within the given duration
+func (c *Client) IsTokenExpiringWithin(threshold time.Duration) bool {
+	if c.tokenExp.IsZero() {
+		// If no expiry is set, consider it as expiring
+		return true
+	}
+
+	expiryThreshold := time.Now().Add(threshold)
+	return c.tokenExp.Before(expiryThreshold)
+}
+
+// RefreshSecretID generates a new secret ID for the AppRole
+// This requires the role to have the ability to generate its own secret IDs
+func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
+	c.logger.Debug("Attempting to refresh AppRole secret ID")
+
+	// First, ensure we have a valid token
+	if err := c.EnsureAuthenticated(ctx); err != nil {
+		return "", errors.Wrap(err, "failed to authenticate before refreshing secret ID")
+	}
+
+	// Generate a new secret ID for the AppRole
+	path := fmt.Sprintf("auth/approle/role/%s/secret-id", c.config.AppRole)
+
+	resp, err := c.client.Logical().WriteWithContext(ctx, path, nil)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to generate new secret ID")
+	}
+
+	if resp == nil || resp.Data == nil {
+		return "", errors.New("empty response when generating secret ID")
+	}
+
+	secretID, ok := resp.Data["secret_id"].(string)
+	if !ok {
+		return "", errors.New("invalid secret_id in response")
+	}
+
+	// Get secret ID metadata for logging
+	secretIDAccessor, _ := resp.Data["secret_id_accessor"].(string)
+	secretIDTTL, _ := resp.Data["secret_id_ttl"].(json.Number)
+
+	c.logger.WithFields(logrus.Fields{
+		"secret_id_accessor": secretIDAccessor,
+		"secret_id_ttl":      secretIDTTL,
+	}).Info("Successfully generated new secret ID")
+
+	return secretID, nil
+}
+
+// GetTokenInfo retrieves information about the current token
+func (c *Client) GetTokenInfo(ctx context.Context) (map[string]interface{}, error) {
+	if err := c.EnsureAuthenticated(ctx); err != nil {
+		return nil, err
+	}
+
+	resp, err := c.client.Auth().Token().LookupSelfWithContext(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to lookup token info")
+	}
+
+	if resp == nil || resp.Data == nil {
+		return nil, errors.New("empty token info response")
+	}
+
+	return resp.Data, nil
 }
 
 // Close performs any necessary cleanup
