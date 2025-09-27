@@ -43,7 +43,8 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		// Don't print the error again if it's already been printed by Cobra
+		// Just exit with error code
 		os.Exit(1)
 	}
 }
@@ -120,6 +121,9 @@ This command will:
 5. Enable systemd service for auto-mount on boot`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Silence usage for runtime errors (not argument errors)
+		cmd.SilenceUsage = true
+
 		device := args[0]
 		force, _ := cmd.Flags().GetBool("force")
 
@@ -249,6 +253,9 @@ This command will:
 3. Create the device mapping`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Silence usage for runtime errors (not argument errors)
+		cmd.SilenceUsage = true
+
 		uuid := args[0]
 		customName, _ := cmd.Flags().GetString("name")
 
@@ -368,6 +375,9 @@ This command will:
 Since this is a one-shot process, token renewal is not needed as fresh tokens
 are obtained on each run. The focus is on secret ID management for long-term credentials.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Silence usage for runtime errors (not argument errors)
+		cmd.SilenceUsage = true
+
 		// Get the expiry threshold from flags or environment
 		thresholdMinutes, _ := cmd.Flags().GetFloat64("threshold-minutes")
 
