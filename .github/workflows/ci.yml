@@ -141,7 +141,7 @@ jobs:
           VAULT_ADDR: http://localhost:8200
           VAULT_TOKEN: root-token
         run: |
-          go test -v -tags=integration ./test/integration/...
+          go test -v ./test/integration/...
 
   release:
     name: Release
