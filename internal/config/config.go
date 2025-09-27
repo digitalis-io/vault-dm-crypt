@@ -150,7 +150,7 @@ func setDefaults(v *viper.Viper, config *Config) {
 	v.SetDefault("logging.output", config.Logging.Output)
 }
 
-// UpdateSecretID updates the secret_id in the config file
+// UpdateSecretID updates only the secret_id line in the config file, preserving all other content and formatting
 func UpdateSecretID(configPath string, newSecretID string) error {
 	// Read the entire file as text to preserve formatting
 	content, err := os.ReadFile(configPath)
@@ -158,39 +158,93 @@ func UpdateSecretID(configPath string, newSecretID string) error {
 		return errors.Wrap(err, "failed to read config file")
 	}
 
-	// Parse the TOML to ensure we have valid structure
-	v := viper.New()
-	v.SetConfigType("toml")
-	if err := v.ReadConfig(strings.NewReader(string(content))); err != nil {
-		return errors.Wrap(err, "failed to parse config file")
+	// Split into lines
+	lines := strings.Split(string(content), "\n")
+
+	// Track if we're in the [vault] section and if we found the secret_id
+	inVaultSection := false
+	secretIDFound := false
+
+	for i, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// Check if we're entering a section
+		if strings.HasPrefix(trimmedLine, "[") {
+			// Check if it's the vault section
+			inVaultSection = (trimmedLine == "[vault]")
+		}
+
+		// If we're in the vault section and find secret_id
+		if inVaultSection && strings.HasPrefix(trimmedLine, "secret_id") {
+			// Parse the line to extract the key
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				if key == "secret_id" {
+					// Preserve the original line's indentation and formatting
+					leadingSpace := ""
+					for _, char := range line {
+						if char == ' ' || char == '\t' {
+							leadingSpace += string(char)
+						} else {
+							break
+						}
+					}
+
+					// Determine the quote style used in the original
+					originalValue := strings.TrimSpace(parts[1])
+					quoteChar := "'"
+					if strings.HasPrefix(originalValue, "\"") {
+						quoteChar = "\""
+					}
+
+					// Build the new line preserving formatting
+					lines[i] = fmt.Sprintf("%ssecret_id = %s%s%s", leadingSpace, quoteChar, newSecretID, quoteChar)
+					secretIDFound = true
+					break
+				}
+			}
+		}
 	}
 
-	// Update the secret_id value
-	v.Set("vault.secret_id", newSecretID)
+	if !secretIDFound {
+		return errors.New("secret_id not found in [vault] section of config file")
+	}
 
-	// Write back to file preserving as much formatting as possible
-	// We'll use viper's WriteConfig but to a temporary location first
+	// Join lines back together
+	newContent := strings.Join(lines, "\n")
+
+	// Write back to file with same permissions as original
+	fileInfo, err := os.Stat(configPath)
+	if err != nil {
+		return errors.Wrap(err, "failed to get file info")
+	}
+
+	// Write to a temporary file first for safety
 	tempFile, err := os.CreateTemp(filepath.Dir(configPath), ".config-*.toml")
 	if err != nil {
 		return errors.Wrap(err, "failed to create temp file")
 	}
-	defer os.Remove(tempFile.Name())
-	defer tempFile.Close()
+	tempFileName := tempFile.Name()
 
-	// Write the updated config
-	if err := v.WriteConfigAs(tempFile.Name()); err != nil {
-		return errors.Wrap(err, "failed to write updated config")
+	// Write content
+	if _, err := tempFile.WriteString(newContent); err != nil {
+		tempFile.Close()
+		os.Remove(tempFileName)
+		return errors.Wrap(err, "failed to write temp file")
+	}
+	tempFile.Close()
+
+	// Set the same permissions as the original file
+	if err := os.Chmod(tempFileName, fileInfo.Mode()); err != nil {
+		os.Remove(tempFileName)
+		return errors.Wrap(err, "failed to set file permissions")
 	}
 
-	// Read the temp file
-	updatedContent, err := os.ReadFile(tempFile.Name())
-	if err != nil {
-		return errors.Wrap(err, "failed to read updated config")
-	}
-
-	// Write to the actual config file
-	if err := os.WriteFile(configPath, updatedContent, 0600); err != nil {
-		return errors.Wrap(err, "failed to write config file")
+	// Atomically replace the original file
+	if err := os.Rename(tempFileName, configPath); err != nil {
+		os.Remove(tempFileName)
+		return errors.Wrap(err, "failed to replace config file")
 	}
 
 	return nil
