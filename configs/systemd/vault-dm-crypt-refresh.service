@@ -10,7 +10,7 @@ Type=oneshot
 User=root
 Group=root
 # Run the refresh-auth command with conditional refresh and config update
-ExecStart=/usr/local/bin/vault-dm-crypt --config /etc/vault-dm-crypt/config.toml refresh-auth --refresh-if-expiring --update-config --threshold-minutes 60
+ExecStart=/usr/local/bin/vault-dm-crypt refresh-auth --refresh-if-expiring --update-config --threshold-minutes 60
 # Set timeout for the operation
 TimeoutSec=300
 # Log output to journal
