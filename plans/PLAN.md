@@ -242,7 +242,7 @@ github.com/stretchr/testify v1.8.4
 - Linux kernel 3.18+ (dm-crypt support)
 - cryptsetup 2.0+
 - systemd 230+
-- Go 1.21+ (for building)
+- Go 1.25+ (for building)
 - Root privileges (for dm-crypt operations)
 
 ### Configuration File Format

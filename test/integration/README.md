@@ -20,7 +20,7 @@ The integration test framework is designed to test the complete vault-dm-crypt f
 - **Linux system**: Required for dm-crypt operations
 - **Root privileges**: Required for dm-crypt and loop device operations
 - **Docker**: Required for Vault container management
-- **Go 1.21+**: Required for building and running tests
+- **Go 1.25+**: Required for building and running tests
 
 ### Required Commands
 

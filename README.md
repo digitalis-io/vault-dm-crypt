@@ -43,7 +43,7 @@ using dm-crypt/LUKS with encryption keys stored in HashiCorp Vault.
 - Linux kernel 3.18+ (dm-crypt support)
 - cryptsetup 2.0+
 - systemd 230+
-- Go 1.21+ (for building)
+- Go 1.25+ (for building)
 - Root privileges (for dm-crypt operations)
 
 ## Installation
