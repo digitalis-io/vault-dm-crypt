@@ -11,7 +11,6 @@ Vcs-Browser: https://github.com/axonops/vault-dm-crypt
 Package: vault-dm-crypt
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, cryptsetup (>= 2:2.0.0), systemd (>= 230)
-Recommends: ca-certificates
 Description: HashiCorp Vault integration for dm-crypt/LUKS encryption
  vault-dm-crypt is a Go implementation of vaultlocker that provides secure
  management of encrypted block devices using dm-crypt/LUKS with encryption

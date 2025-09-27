@@ -115,7 +115,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev debhelper devscripts golang-go
+          sudo apt-get install -y dpkg-dev debhelper devscripts golang-go build-essential
 
       - name: Set up Go
         uses: actions/setup-go@v5
