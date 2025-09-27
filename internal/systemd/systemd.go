@@ -224,7 +224,7 @@ func (sm *Manager) UninstallServiceFile(serviceName string) error {
 // CreateDecryptServiceName creates a systemd service name for decrypting a specific UUID
 func (sm *Manager) CreateDecryptServiceName(uuid string) string {
 	// Clean the UUID to make it suitable for systemd service name
-	cleanUUID := strings.ReplaceAll(strings.ToLower(uuid), "-", "")
+	cleanUUID := strings.ToLower(uuid)
 	serviceName := fmt.Sprintf("vault-dm-crypt-decrypt@%s.service", cleanUUID)
 
 	sm.logger.WithFields(logrus.Fields{

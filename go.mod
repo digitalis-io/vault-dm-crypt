@@ -3,6 +3,7 @@ module github.com/axonops/vault-dm-crypt
 go 1.25
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/vault/api v1.21.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1

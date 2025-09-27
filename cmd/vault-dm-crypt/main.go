@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -154,8 +155,8 @@ This command will:
 		}
 
 		// Generate UUID for the device
-		uuid := generateUUID()
-		logger.WithField("uuid", uuid).Debug("Generated UUID for device")
+		uuidStr := uuid.NewString()
+		logger.WithField("uuid", uuidStr).Debug("Generated UUID for device")
 
 		// Store key in Vault
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout())
@@ -174,7 +175,7 @@ This command will:
 				secretData["hostname"] = hostname
 			}
 
-			vaultPath := fmt.Sprintf("vaultlocker/%s", uuid)
+			vaultPath := fmt.Sprintf("vaultlocker/%s", uuidStr)
 			return vaultClient.WriteSecret(ctx, vaultPath, secretData)
 		})
 
@@ -188,7 +189,7 @@ This command will:
 
 		// Format device with LUKS
 		logger.Info("Formatting device with LUKS encryption")
-		err = dmcryptManager.FormatDevice(device, key, uuid)
+		err = dmcryptManager.FormatDevice(device, key, uuidStr)
 		if err != nil {
 			dmcryptManager.SecureEraseKey(&key)
 			return fmt.Errorf("failed to format device with LUKS: %w", err)
@@ -197,7 +198,7 @@ This command will:
 		logger.Info("Device formatted with LUKS successfully")
 
 		// Open the LUKS device
-		deviceName := dmcryptManager.GenerateDeviceName(uuid)
+		deviceName := dmcryptManager.GenerateDeviceName(uuidStr)
 		logger.WithField("device_name", deviceName).Info("Opening LUKS device")
 
 		err = dmcryptManager.OpenDevice(device, key, deviceName)
@@ -214,7 +215,7 @@ This command will:
 
 		// Enable systemd service for auto-decrypt on boot
 		logger.Info("Enabling systemd service for automatic decryption on boot")
-		err = systemdManager.EnableDecryptService(uuid)
+		err = systemdManager.EnableDecryptService(uuidStr)
 		if err != nil {
 			logger.WithError(err).Warn("Failed to enable systemd service - device will need manual decryption on boot")
 		} else {
@@ -223,14 +224,14 @@ This command will:
 
 		logger.WithFields(logrus.Fields{
 			"device":        device,
-			"uuid":          uuid,
+			"uuid":          uuidStr,
 			"mapped_device": mappedDevice,
 		}).Info("Device encryption completed successfully")
 
 		fmt.Printf("Device encrypted successfully:\n")
-		fmt.Printf("  UUID: %s\n", uuid)
+		fmt.Printf("  UUID: %s\n", uuidStr)
 		fmt.Printf("  Mapped device: %s\n", mappedDevice)
-		fmt.Printf("  Vault path: secret/vaultlocker/%s\n", uuid)
+		fmt.Printf("  Vault path: secret/vaultlocker/%s\n", uuidStr)
 
 		return nil
 	},
@@ -411,19 +412,6 @@ func configureLogger(logConfig config.LoggingConfig) error {
 	}
 
 	return nil
-}
-
-// generateUUID generates a new UUID for the device
-func generateUUID() string {
-	// Generate a simple UUID-like string
-	// In a real implementation, you might want to use a proper UUID library
-	// or generate based on device characteristics
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		time.Now().Unix(),
-		time.Now().Nanosecond()&0xFFFF,
-		(time.Now().Nanosecond()>>16)&0xFFFF,
-		(time.Now().Nanosecond()>>32)&0xFFFF,
-		time.Now().UnixNano()&0xFFFFFFFFFFFF)
 }
 
 // findDeviceByUUID finds a device path by its UUID
