@@ -116,6 +116,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for version detection
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -126,6 +128,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y dpkg-dev debhelper devscripts
+
+      - name: Update version in changelog
+        run: |
+          # Get version from git tag or describe
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          else
+            VERSION=$(git describe --tags --always --dirty | sed 's/^v//')
+            VERSION="${VERSION}-dev"
+          fi
+
+          # Update debian changelog with the correct version
+          DEBEMAIL="support@axonops.com" DEBFULLNAME="AxonOps" \
+            dch --newversion "${VERSION}-1" --distribution unstable \
+            --force-distribution "Build from git version ${VERSION}"
+
+          echo "Building Debian package version: ${VERSION}-1"
+          cat debian/changelog | head -n 5
 
       - name: Build Debian package
         run: make deb
