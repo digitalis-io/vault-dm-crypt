@@ -24,8 +24,13 @@ PrivateTmp=true
 ProtectSystem=strict
 ReadWritePaths=/etc/vault-dm-crypt
 ProtectHome=true
-RestrictSUBGID=true
 RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
 
 [Install]
 WantedBy=multi-user.target
