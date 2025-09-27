@@ -366,13 +366,13 @@ This command will:
 3. Update the config file with the new secret ID if it has changed`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get the expiry threshold from flags or environment
-		thresholdHours, _ := cmd.Flags().GetFloat64("threshold-hours")
+		thresholdMinutes, _ := cmd.Flags().GetFloat64("threshold-minutes")
 
 		// Check environment variable if not set via flag
-		if !cmd.Flags().Changed("threshold-hours") {
-			if envThreshold := os.Getenv("VAULT_DM_CRYPT_REFRESH_THRESHOLD_HOURS"); envThreshold != "" {
-				if parsed, err := time.ParseDuration(envThreshold + "h"); err == nil {
-					thresholdHours = parsed.Hours()
+		if !cmd.Flags().Changed("threshold-minutes") {
+			if envThreshold := os.Getenv("VAULT_DM_CRYPT_REFRESH_THRESHOLD_MINUTES"); envThreshold != "" {
+				if parsed, err := time.ParseDuration(envThreshold + "m"); err == nil {
+					thresholdMinutes = parsed.Minutes()
 				}
 			}
 		}
@@ -380,12 +380,12 @@ This command will:
 		updateConfig, _ := cmd.Flags().GetBool("update-config")
 		forceRefresh, _ := cmd.Flags().GetBool("force")
 
-		threshold := time.Duration(thresholdHours * float64(time.Hour))
+		threshold := time.Duration(thresholdMinutes * float64(time.Minute))
 
 		logger.WithFields(logrus.Fields{
-			"threshold_hours": thresholdHours,
-			"update_config":   updateConfig,
-			"force_refresh":   forceRefresh,
+			"threshold_minutes": thresholdMinutes,
+			"update_config":     updateConfig,
+			"force_refresh":     forceRefresh,
 		}).Info("Checking authentication status")
 
 		// Create context with timeout
@@ -493,7 +493,7 @@ func init() {
 	decryptCmd.Flags().StringP("name", "n", "", "custom name for the device mapping")
 
 	// Add flags specific to refresh-auth command
-	refreshAuthCmd.Flags().Float64P("threshold-hours", "t", 1.0, "hours before expiry to trigger refresh")
+	refreshAuthCmd.Flags().Float64P("threshold-minutes", "t", 1.0, "minutes before expiry to trigger refresh")
 	refreshAuthCmd.Flags().BoolP("update-config", "u", false, "update config file with new secret ID")
 	refreshAuthCmd.Flags().BoolP("force", "f", false, "force refresh even if not expiring")
 }
