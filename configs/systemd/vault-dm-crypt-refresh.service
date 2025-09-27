@@ -1,0 +1,31 @@
+[Unit]
+Description=Vault DM-Crypt Authentication Refresh
+Documentation=https://github.com/axonops/vault-dm-crypt
+After=network-online.target
+Wants=network-online.target
+DefaultDependencies=false
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+# Run the refresh-auth command with conditional refresh and config update
+ExecStart=/usr/local/bin/vault-dm-crypt --config /etc/vault-dm-crypt/config.toml refresh-auth --refresh-if-expiring --update-config --threshold-minutes 60
+# Set timeout for the operation
+TimeoutSec=300
+# Log output to journal
+StandardOutput=journal
+StandardError=journal
+# Set nice level for background operation
+Nice=10
+# Restrict privileges
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/etc/vault-dm-crypt
+ProtectHome=true
+RestrictSUBGID=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

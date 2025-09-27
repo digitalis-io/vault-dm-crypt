@@ -15,6 +15,8 @@ using dm-crypt/LUKS with encryption keys stored in HashiCorp Vault.
 - ✅ Store encryption keys securely in HashiCorp Vault
 - ✅ Automatic device decryption on boot via systemd
 - ✅ AppRole authentication for Vault access
+- ✅ **Automatic secret ID refresh** with systemd timer
+- ✅ **Intelligent secret ID lifecycle management**
 - ✅ Retry mechanism for Vault connectivity
 - ✅ Zero Python dependencies
 - ✅ Compatible with modern Linux distributions
@@ -76,16 +78,50 @@ vault-dm-crypt encrypt /dev/sdd1
 vault-dm-crypt decrypt <uuid>
 ```
 
+### Authentication Management
+
+Manage AppRole secret ID lifecycle:
+
+```bash
+# Check authentication status
+vault-dm-crypt refresh-auth --status-only
+
+# Refresh secret ID if expiring within 60 minutes
+vault-dm-crypt refresh-auth --refresh-if-expiring --update-config
+
+# Always generate new secret ID
+vault-dm-crypt refresh-auth --refresh-secret-id --update-config
+```
+
+### Automated Secret ID Refresh
+
+For production environments, use the included systemd timer to automatically refresh secret IDs:
+
+```bash
+# Install systemd units
+sudo cp configs/systemd/vault-dm-crypt-refresh.service /etc/systemd/system/
+sudo cp configs/systemd/vault-dm-crypt-refresh.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Enable automatic refresh every 15 minutes
+sudo systemctl enable vault-dm-crypt-refresh.timer
+sudo systemctl start vault-dm-crypt-refresh.timer
+
+# Monitor refresh activity
+sudo journalctl -u vault-dm-crypt-refresh.service -f
+```
+
 ### Configuration
 
 Configuration file is located at `/etc/vault-dm-crypt/config.toml`:
 
 ```toml
 [vault]
-url = "http://vault.example.com:8200"
+url = "https://vault.example.com:8200"
 backend = "secret"
 approle = "your-approle-id"
 secret_id = "your-secret-id"
+approle_name = "vault-dm-crypt"  # Required for secret ID refresh
 ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
 timeout = 30
 retry_max = 3
