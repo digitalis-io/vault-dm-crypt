@@ -251,7 +251,7 @@ func TestCreateDecryptServiceName(t *testing.T) {
 	uuid := "12345678-1234-1234-1234-123456789abc"
 	serviceName := manager.CreateDecryptServiceName(uuid)
 
-	expected := "vault-dm-crypt-decrypt@12345678123412341234123456789abc.service"
+	expected := "vault-dm-crypt-decrypt@12345678-1234-1234-1234-123456789abc.service"
 	assert.Equal(t, expected, serviceName)
 }
 
@@ -264,7 +264,7 @@ func TestEnableDecryptService(t *testing.T) {
 	manager.executor = mockExecutor
 
 	uuid := "12345678-1234-1234-1234-123456789abc"
-	expectedServiceName := "vault-dm-crypt-decrypt@12345678123412341234123456789abc.service"
+	expectedServiceName := "vault-dm-crypt-decrypt@12345678-1234-1234-1234-123456789abc.service"
 
 	err := manager.EnableDecryptService(uuid)
 	assert.NoError(t, err)
@@ -282,7 +282,7 @@ func TestDisableDecryptService(t *testing.T) {
 	manager.executor = mockExecutor
 
 	uuid := "12345678-1234-1234-1234-123456789abc"
-	expectedServiceName := "vault-dm-crypt-decrypt@12345678123412341234123456789abc.service"
+	expectedServiceName := "vault-dm-crypt-decrypt@12345678-1234-1234-1234-123456789abc.service"
 
 	err := manager.DisableDecryptService(uuid)
 	assert.NoError(t, err)

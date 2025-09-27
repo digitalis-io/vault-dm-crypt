@@ -142,9 +142,9 @@ func bindEnvironmentVariables(v *viper.Viper) {
 func setDefaults(v *viper.Viper, config *Config) {
 	v.SetDefault("vault.url", config.Vault.URL)
 	v.SetDefault("vault.backend", config.Vault.Backend)
-	v.SetDefault("vault.timeout", config.Vault.Timeout)
+	v.SetDefault("vault.timeout", config.Vault.TimeoutSecs)
 	v.SetDefault("vault.retry_max", config.Vault.RetryMax)
-	v.SetDefault("vault.retry_delay", config.Vault.RetryDelay)
+	v.SetDefault("vault.retry_delay", config.Vault.RetryDelaySecs)
 	v.SetDefault("logging.level", config.Logging.Level)
 	v.SetDefault("logging.format", config.Logging.Format)
 	v.SetDefault("logging.output", config.Logging.Output)

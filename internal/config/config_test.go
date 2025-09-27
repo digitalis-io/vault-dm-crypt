@@ -15,9 +15,9 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, "http://127.0.0.1:8200", config.Vault.URL)
 	assert.Equal(t, "secret", config.Vault.Backend)
-	assert.Equal(t, 30*time.Second, config.Vault.Timeout)
+	assert.Equal(t, 30*time.Second, config.Vault.Timeout())
 	assert.Equal(t, 3, config.Vault.RetryMax)
-	assert.Equal(t, 5*time.Second, config.Vault.RetryDelay)
+	assert.Equal(t, 5*time.Second, config.Vault.RetryDelay())
 	assert.Equal(t, "info", config.Logging.Level)
 	assert.Equal(t, "text", config.Logging.Format)
 	assert.Equal(t, "stdout", config.Logging.Output)
@@ -207,9 +207,9 @@ url = "https://vault.example.com:8200"
 backend = "kv"
 approle = "test-approle"
 secret_id = "test-secret-id"
-timeout = "60s"
+timeout = 60
 retry_max = 5
-retry_delay = "10s"
+retry_delay = 10
 
 [logging]
 level = "debug"
@@ -229,9 +229,9 @@ output = "stderr"
 	assert.Equal(t, "kv", config.Vault.Backend)
 	assert.Equal(t, "test-approle", config.Vault.AppRole)
 	assert.Equal(t, "test-secret-id", config.Vault.SecretID)
-	assert.Equal(t, 60*time.Second, config.Vault.Timeout)
+	assert.Equal(t, 60*time.Second, config.Vault.Timeout())
 	assert.Equal(t, 5, config.Vault.RetryMax)
-	assert.Equal(t, 10*time.Second, config.Vault.RetryDelay)
+	assert.Equal(t, 10*time.Second, config.Vault.RetryDelay())
 	assert.Equal(t, "debug", config.Logging.Level)
 	assert.Equal(t, "json", config.Logging.Format)
 	assert.Equal(t, "stderr", config.Logging.Output)
