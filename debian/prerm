@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -e
+
+case "$1" in
+    remove|deconfigure)
+        # Stop and disable the refresh timer if it's running
+        if [ -d /run/systemd/system ]; then
+            systemctl stop vault-dm-crypt-refresh.timer 2>/dev/null || true
+            systemctl disable vault-dm-crypt-refresh.timer 2>/dev/null || true
+            systemctl stop vault-dm-crypt-refresh.service 2>/dev/null || true
+            systemctl disable vault-dm-crypt-refresh.service 2>/dev/null || true
+
+            # Stop any running decrypt services
+            systemctl stop 'vault-dm-crypt-decrypt@*.service' 2>/dev/null || true
+            systemctl disable 'vault-dm-crypt-decrypt@*.service' 2>/dev/null || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

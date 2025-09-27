@@ -203,16 +203,16 @@ build-all: build-linux-amd64 build-linux-arm64
 # Build Debian package
 deb: clean
 	@echo "$(GREEN)Building Debian package...$(NC)"
-	@if ! command -v dpkg-buildpackage &> /dev/null; then \
-		echo "$(RED)Error: dpkg-buildpackage not found. Install with:$(NC)"; \
-		echo "sudo apt-get install dpkg-dev build-essential"; \
-		exit 1; \
-	fi
-	@if ! command -v debhelper &> /dev/null; then \
-		echo "$(RED)Error: debhelper not found. Install with:$(NC)"; \
-		echo "sudo apt-get install debhelper"; \
-		exit 1; \
-	fi
+#	@if ! command -v dpkg-buildpackage &> /dev/null; then \
+#		echo "$(RED)Error: dpkg-buildpackage not found. Install with:$(NC)"; \
+#		echo "sudo apt-get install dpkg-dev build-essential"; \
+#		exit 1; \
+#	fi
+#	@if ! command -v debhelper &> /dev/null; then \
+#		echo "$(RED)Error: debhelper not found. Install with:$(NC)"; \
+#		echo "sudo apt-get install debhelper"; \
+#		exit 1; \
+#	fi
 	@echo "$(GREEN)Building package with dpkg-buildpackage...$(NC)"
 	@dpkg-buildpackage -us -uc -b
 	@echo "$(GREEN)Debian package build complete!$(NC)"

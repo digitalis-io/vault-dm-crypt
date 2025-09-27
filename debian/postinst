@@ -1,0 +1,42 @@
+#!/bin/bash
+
+set -e
+
+case "$1" in
+    configure)
+        # Create vault-dm-crypt config directory if it doesn't exist
+        if [ ! -d /etc/vault-dm-crypt ]; then
+            mkdir -p /etc/vault-dm-crypt
+            chmod 755 /etc/vault-dm-crypt
+        fi
+
+        # Create default config if it doesn't exist
+        if [ ! -f /etc/vault-dm-crypt/config.toml ]; then
+            cp /etc/vault-dm-crypt/config.toml.example /etc/vault-dm-crypt/config.toml
+            chmod 600 /etc/vault-dm-crypt/config.toml
+            echo "Created default configuration at /etc/vault-dm-crypt/config.toml"
+            echo "Please edit this file with your Vault settings before using vault-dm-crypt"
+        fi
+
+        # Reload systemd to pick up new service files
+        if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload || true
+        fi
+
+        echo ""
+        echo "vault-dm-crypt has been installed successfully!"
+        echo ""
+        echo "Next steps:"
+        echo "1. Edit /etc/vault-dm-crypt/config.toml with your Vault settings"
+        echo "2. Optionally enable automatic secret ID refresh:"
+        echo "   sudo systemctl enable vault-dm-crypt-refresh.timer"
+        echo "   sudo systemctl start vault-dm-crypt-refresh.timer"
+        echo ""
+        echo "For more information, see the documentation at:"
+        echo "https://github.com/axonops/vault-dm-crypt"
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

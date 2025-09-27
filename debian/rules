@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export CGO_ENABLED = 0
+export GOOS = linux
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	rm -rf build/
+	go clean
+
+override_dh_auto_build:
+	mkdir -p build
+	go build -ldflags="-s -w" -o build/vault-dm-crypt ./cmd/vault-dm-crypt
+
+override_dh_auto_test:
+	go test ./...
+
+override_dh_auto_install:
+	dh_auto_install
+	# Create directories
+	mkdir -p debian/vault-dm-crypt/usr/bin
+	mkdir -p debian/vault-dm-crypt/etc/vault-dm-crypt
+	mkdir -p debian/vault-dm-crypt/lib/systemd/system
+	# Install binary
+	install -m 755 build/vault-dm-crypt debian/vault-dm-crypt/usr/bin/
+	# Install systemd units
+	install -m 644 configs/systemd/vault-dm-crypt-decrypt@.service debian/vault-dm-crypt/lib/systemd/system/
+	install -m 644 configs/systemd/vault-dm-crypt-refresh.service debian/vault-dm-crypt/lib/systemd/system/
+	install -m 644 configs/systemd/vault-dm-crypt-refresh.timer debian/vault-dm-crypt/lib/systemd/system/
+	# Install config template
+	install -m 644 configs/config.toml.example debian/vault-dm-crypt/etc/vault-dm-crypt/
+

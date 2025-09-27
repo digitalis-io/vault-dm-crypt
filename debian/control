@@ -1,0 +1,32 @@
+Source: vault-dm-crypt
+Section: admin
+Priority: optional
+Maintainer: AxonOps <support@axonops.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.24~)
+Standards-Version: 4.6.2
+Homepage: https://github.com/axonops/vault-dm-crypt
+Vcs-Git: https://github.com/axonops/vault-dm-crypt.git
+Vcs-Browser: https://github.com/axonops/vault-dm-crypt
+
+Package: vault-dm-crypt
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, cryptsetup (>= 2:2.0.0), systemd (>= 230)
+Recommends: ca-certificates
+Description: HashiCorp Vault integration for dm-crypt/LUKS encryption
+ vault-dm-crypt is a Go implementation of vaultlocker that provides secure
+ management of encrypted block devices using dm-crypt/LUKS with encryption
+ keys stored in HashiCorp Vault.
+ .
+ Key features:
+  * Encrypt block devices using LUKS/dm-crypt
+  * Store encryption keys securely in HashiCorp Vault
+  * Automatic device decryption on boot via systemd
+  * AppRole authentication for Vault access
+  * Automatic secret ID refresh with systemd timer
+  * Intelligent secret ID lifecycle management
+  * Retry mechanism for Vault connectivity
+  * Zero Python dependencies
+  * Compatible with modern Linux distributions
+ .
+ This package includes the main binary, systemd service units for automated
+ operations, and configuration templates.

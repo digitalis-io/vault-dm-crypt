@@ -1,0 +1,10 @@
+vault-dm-crypt (1.0.0-1) unstable; urgency=medium
+
+  * Initial release
+  * Complete Go implementation of vaultlocker functionality
+  * Support for LUKS/dm-crypt encryption with Vault key storage
+  * AppRole authentication with automatic secret ID refresh
+  * Systemd integration for automated operations
+  * Production-ready with comprehensive error handling
+
+ -- AxonOps <support@axonops.com>  Fri, 27 Sep 2024 12:00:00 +0000
