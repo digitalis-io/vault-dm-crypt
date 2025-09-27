@@ -31,17 +31,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Download and verify dependencies
+        run: make deps
 
-      - name: Verify dependencies
-        run: go mod verify
+      - name: Run formatting check
+        run: |
+          make fmt
+          git diff --exit-code || (echo "Code is not formatted. Run 'make fmt' locally and commit changes." && exit 1)
 
       - name: Run go vet
-        run: go vet ./...
+        run: make vet
 
-      - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+      - name: Run unit tests with coverage
+        run: make test-cover
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
