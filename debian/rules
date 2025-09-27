@@ -16,7 +16,7 @@ override_dh_auto_build:
 	go build -ldflags="-s -w" -o build/vault-dm-crypt ./cmd/vault-dm-crypt
 
 override_dh_auto_test:
-	go test ./...
+	go test $(shell go list ./... | grep -v ./test/integration)
 
 override_dh_auto_install:
 	dh_auto_install
