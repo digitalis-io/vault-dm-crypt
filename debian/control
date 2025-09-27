@@ -2,7 +2,7 @@ Source: vault-dm-crypt
 Section: admin
 Priority: optional
 Maintainer: AxonOps <support@axonops.com>
-Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.24~)
+Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.22~)
 Standards-Version: 4.6.2
 Homepage: https://github.com/axonops/vault-dm-crypt
 Vcs-Git: https://github.com/axonops/vault-dm-crypt.git
