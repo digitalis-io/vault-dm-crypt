@@ -179,25 +179,6 @@ func (c *Client) ReadSecret(ctx context.Context, path string) (map[string]interf
 	return data, nil
 }
 
-// DeleteSecret removes a secret from the specified path
-func (c *Client) DeleteSecret(ctx context.Context, path string) error {
-	if err := c.EnsureAuthenticated(ctx); err != nil {
-		return err
-	}
-
-	fullPath := fmt.Sprintf("%s/data/%s", c.config.Backend, path)
-
-	c.logger.WithField("path", fullPath).Debug("Deleting secret from Vault")
-
-	_, err := c.client.Logical().DeleteWithContext(ctx, fullPath)
-	if err != nil {
-		return errors.NewVaultDeleteError(fullPath, err)
-	}
-
-	c.logger.WithField("path", fullPath).Info("Successfully deleted secret from Vault")
-	return nil
-}
-
 // WithRetry executes a function with retry logic
 func (c *Client) WithRetry(ctx context.Context, operation func() error) error {
 	var lastErr error

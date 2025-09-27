@@ -421,13 +421,6 @@ func TestClientSecretOperations(t *testing.T) {
 		assert.Error(t, err) // Expected to fail without real Vault server
 		assert.Nil(t, data)
 	})
-
-	t.Run("delete secret", func(t *testing.T) {
-		ctx := context.Background()
-		err := client.DeleteSecret(ctx, secretPath)
-		// This will likely fail in test environment but tests the code path
-		assert.Error(t, err) // Expected to fail without real Vault server
-	})
 }
 
 func TestReadSecretErrorConditions(t *testing.T) {
