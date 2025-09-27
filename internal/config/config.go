@@ -91,7 +91,7 @@ func Load(configPath string) (*Config, error) {
 	if err := v.ReadInConfig(); err != nil {
 		// If config file is explicitly specified, fail on read error
 		if configPath != "" {
-			return nil, errors.NewConfigError("", fmt.Sprintf("failed to read config file: %s", configPath), err)
+			return nil, errors.NewConfigError("", fmt.Sprintf("failed to read config file %s: %v", configPath, err), nil)
 		}
 		// Otherwise, continue with defaults and environment variables
 	}
