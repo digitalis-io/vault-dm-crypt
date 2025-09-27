@@ -1,0 +1,8 @@
+# This file controls which systemd services are automatically handled by debhelper
+# Since all our services are either templates (@) or should be manually enabled,
+# we leave this file empty to prevent any automatic enabling
+#
+# Services installed but NOT auto-enabled:
+# - vault-dm-crypt-decrypt@.service (template, enabled per-device)
+# - vault-dm-crypt-refresh.service (optional, manually enabled if needed)
+# - vault-dm-crypt-refresh.timer (optional, manually enabled if needed)
