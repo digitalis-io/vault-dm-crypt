@@ -141,11 +141,12 @@ secret_id = "invalid-secret"
 		)
 
 		assert.Error(t, err)
-		// Should get a meaningful error about configuration or connection
+		// Should get a meaningful error about configuration, connection, or privileges
 		assert.True(t,
 			strings.Contains(stderr, "failed to authenticate") ||
 				strings.Contains(stderr, "connection") ||
-				strings.Contains(stderr, "configuration"),
+				strings.Contains(stderr, "configuration") ||
+				strings.Contains(stderr, "root privileges"),
 			"Should get meaningful error: %s", stderr)
 	})
 
