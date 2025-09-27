@@ -88,17 +88,17 @@ clean:
 # Run unit tests
 test:
 	@echo "$(GREEN)Running unit tests...$(NC)"
-	@$(GOTEST) ./...
+	@$(GOTEST) $(shell go list ./... | grep -v ./test/integration)
 
 # Run unit tests with verbose output
 test-verbose:
 	@echo "$(GREEN)Running unit tests (verbose)...$(NC)"
-	@$(GOTEST) -v ./...
+	@$(GOTEST) -v $(shell go list ./... | grep -v ./test/integration)
 
 # Run unit tests with coverage
 test-cover:
 	@echo "$(GREEN)Running unit tests with coverage...$(NC)"
-	@$(GOTEST) -cover -coverprofile=coverage.out ./...
+	@$(GOTEST) -cover -coverprofile=coverage.out $(shell go list ./... | grep -v ./test/integration)
 	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
 
