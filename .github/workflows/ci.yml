@@ -13,7 +13,7 @@ env:
 jobs:
   test:
     name: Test
-    runs-on: debian:trixie
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -54,7 +54,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: debian:trixie
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -72,7 +72,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: debian:trixie
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         goos: [ linux ]
@@ -110,9 +110,35 @@ jobs:
           name: vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }}
           path: build/vault-dm-crypt-${{ matrix.goos }}-${{ matrix.goarch }}
 
+  debian-package:
+    name: Build Debian Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev debhelper devscripts
+
+      - name: Build Debian package
+        run: make deb
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: ../vault-dm-crypt_*.deb
+
   integration:
     name: Integration Tests
-    runs-on: debian:trixie
+    runs-on: ubuntu-latest
     services:
       vault:
         image: hashicorp/vault:latest
@@ -145,8 +171,8 @@ jobs:
 
   release:
     name: Release
-    needs: [ test, lint, build ]
-    runs-on: debian:trixie
+    needs: [ test, lint, build, debian-package ]
+    runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout code
@@ -164,11 +190,20 @@ jobs:
         with:
           path: ./artifacts
 
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          # Copy binaries
+          cp artifacts/vault-dm-crypt-*/* release-assets/ 2>/dev/null || true
+          # Copy Debian package
+          cp artifacts/debian-package/*.deb release-assets/ 2>/dev/null || true
+          # List assets for verification
+          ls -la release-assets/
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/*/*
+          files: release-assets/*
           draft: false
           prerelease: false
           generate_release_notes: true
