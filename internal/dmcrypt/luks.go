@@ -10,7 +10,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
+	"github.com/axonops/vault-dm-crypt/internal/errors"
 )
 
 // LUKSManager handles LUKS-specific operations

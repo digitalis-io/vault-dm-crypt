@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/axonops/vault-dm-crypt/internal/config"
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
+	"github.com/axonops/vault-dm-crypt/internal/errors"
 )
 
 // Client wraps the Vault API client with additional functionality

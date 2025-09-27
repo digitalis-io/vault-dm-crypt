@@ -10,8 +10,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/axonops/vault-dm-crypt/internal/errors"
 	"github.com/axonops/vault-dm-crypt/internal/shell"
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
 )
 
 // Executor interface for command execution

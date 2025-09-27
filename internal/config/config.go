@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
+	"github.com/axonops/vault-dm-crypt/internal/errors"
 )
 
 // Config represents the complete configuration structure

@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/vault/api"
 	"github.com/sirupsen/logrus"
 
-	"github.com/axonops/vault-dm-crypt/pkg/errors"
+	"github.com/axonops/vault-dm-crypt/internal/errors"
 )
 
 // AuthMethod represents different authentication methods
