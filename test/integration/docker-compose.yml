@@ -5,7 +5,7 @@ version: '3.8'
 
 services:
   vault:
-    image: vault:latest
+    image: hashicorp/vault:latest
     container_name: vault-dm-crypt-test
     cap_add:
       - IPC_LOCK

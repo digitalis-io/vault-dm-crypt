@@ -34,7 +34,7 @@ func NewClient(cfg *config.VaultConfig, logger *logrus.Logger) (*Client, error) 
 	// Create Vault API config
 	vaultConfig := api.DefaultConfig()
 	vaultConfig.Address = cfg.URL
-	vaultConfig.Timeout = cfg.Timeout
+	vaultConfig.Timeout = cfg.Timeout()
 
 	// Configure TLS if CA bundle is specified
 	if cfg.CABundle != "" {
@@ -213,7 +213,7 @@ func (c *Client) WithRetry(ctx context.Context, operation func() error) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(c.config.RetryDelay):
+			case <-time.After(c.config.RetryDelay()):
 			}
 		}
 

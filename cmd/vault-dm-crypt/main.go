@@ -158,7 +158,7 @@ This command will:
 		logger.WithField("uuid", uuid).Debug("Generated UUID for device")
 
 		// Store key in Vault
-		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout())
 		defer cancel()
 
 		logger.Debug("Storing encryption key in Vault")
@@ -261,7 +261,7 @@ This command will:
 		}
 
 		// Retrieve key from Vault
-		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.Vault.Timeout())
 		defer cancel()
 
 		logger.Debug("Retrieving encryption key from Vault")

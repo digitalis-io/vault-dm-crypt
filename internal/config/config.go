@@ -20,14 +20,22 @@ type Config struct {
 
 // VaultConfig contains Vault-specific configuration
 type VaultConfig struct {
-	URL        string        `mapstructure:"url"`
-	Backend    string        `mapstructure:"backend"`
-	AppRole    string        `mapstructure:"approle"`
-	SecretID   string        `mapstructure:"secret_id"`
-	CABundle   string        `mapstructure:"ca_bundle"`
-	Timeout    time.Duration `mapstructure:"timeout"`
-	RetryMax   int           `mapstructure:"retry_max"`
-	RetryDelay time.Duration `mapstructure:"retry_delay"`
+	URL            string `mapstructure:"url"`
+	Backend        string `mapstructure:"backend"`
+	AppRole        string `mapstructure:"approle"`
+	SecretID       string `mapstructure:"secret_id"`
+	CABundle       string `mapstructure:"ca_bundle"`
+	TimeoutSecs    int    `mapstructure:"timeout"`
+	RetryMax       int    `mapstructure:"retry_max"`
+	RetryDelaySecs int    `mapstructure:"retry_delay"`
+}
+
+func (v VaultConfig) Timeout() time.Duration {
+	return time.Duration(v.TimeoutSecs) * time.Second
+}
+
+func (v VaultConfig) RetryDelay() time.Duration {
+	return time.Duration(v.RetryDelaySecs) * time.Second
 }
 
 // LoggingConfig contains logging configuration
@@ -41,11 +49,11 @@ type LoggingConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Vault: VaultConfig{
-			URL:        "http://127.0.0.1:8200",
-			Backend:    "secret",
-			Timeout:    30 * time.Second,
-			RetryMax:   3,
-			RetryDelay: 5 * time.Second,
+			URL:            "http://127.0.0.1:8200",
+			Backend:        "secret",
+			TimeoutSecs:    30,
+			RetryMax:       3,
+			RetryDelaySecs: 5,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -169,7 +177,7 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate timeouts and retry settings
-	if c.Vault.Timeout <= 0 {
+	if c.Vault.TimeoutSecs <= 0 {
 		return errors.NewConfigError("vault.timeout", "timeout must be positive", nil)
 	}
 
@@ -177,7 +185,7 @@ func (c *Config) Validate() error {
 		return errors.NewConfigError("vault.retry_max", "retry_max cannot be negative", nil)
 	}
 
-	if c.Vault.RetryDelay < 0 {
+	if c.Vault.RetryDelaySecs < 0 {
 		return errors.NewConfigError("vault.retry_delay", "retry_delay cannot be negative", nil)
 	}
 
