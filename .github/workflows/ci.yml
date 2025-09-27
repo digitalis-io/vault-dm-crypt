@@ -144,11 +144,15 @@ jobs:
       - name: Build Debian package
         run: make deb
 
+      - name: Workaround for relative path to deb package
+        run: |
+          echo "artifacts_path=$(realpath ..)" >> $GITHUB_ENV
+
       - name: Upload Debian package
         uses: actions/upload-artifact@v4
         with:
           name: debian-package
-          path: ../vault-dm-crypt_*.deb
+          path: "${{ env.artifacts_path }}/vault-dm-crypt_*.deb"
 
   integration:
     name: Integration Tests
