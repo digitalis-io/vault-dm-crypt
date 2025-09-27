@@ -5,7 +5,7 @@ export CGO_ENABLED = 0
 export GOOS = linux
 
 %:
-	dh $@
+	dh $@ --with=systemd
 
 override_dh_auto_clean:
 	rm -rf build/
@@ -31,4 +31,16 @@ override_dh_auto_install:
 	install -m 644 configs/systemd/vault-dm-crypt-refresh.timer debian/vault-dm-crypt/lib/systemd/system/
 	# Install config template
 	install -m 644 configs/config.toml.example debian/vault-dm-crypt/etc/vault-dm-crypt/
+
+# Don't enable any services by default
+override_dh_systemd_enable:
+	# Explicitly do nothing - services should be manually enabled
+
+# Don't start any services on install
+override_dh_systemd_start:
+	# Explicitly do nothing - services should be manually started
+
+# Only reload systemd daemon, don't try to restart services
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start
 
