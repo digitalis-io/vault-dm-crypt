@@ -357,14 +357,16 @@ This command will:
 
 var refreshAuthCmd = &cobra.Command{
 	Use:   "refresh-auth",
-	Short: "Refresh AppRole authentication if expiring soon",
-	Long: `Check if the AppRole token is expiring and refresh authentication if needed.
+	Short: "Check AppRole authentication status and refresh secret ID if needed",
+	Long: `Check AppRole authentication status and manage secret ID lifecycle.
 
 This command will:
-1. Check if the current token will expire within the specified threshold
-2. If expiring soon, attempt to renew the token
-3. If renewal fails or token is not renewable, re-authenticate
-4. If --refresh-secret-id is used and approle_name is configured, generate a new secret ID`,
+1. Show current token and secret ID expiry information
+2. Generate a new secret ID if requested or if current one is expiring soon
+3. Optionally update the config file with the new secret ID
+
+Since this is a one-shot process, token renewal is not needed as fresh tokens
+are obtained on each run. The focus is on secret ID management for long-term credentials.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Get the expiry threshold from flags or environment
 		thresholdMinutes, _ := cmd.Flags().GetFloat64("threshold-minutes")
@@ -378,17 +380,17 @@ This command will:
 			}
 		}
 
-		forceRefresh, _ := cmd.Flags().GetBool("force")
 		refreshSecretID, _ := cmd.Flags().GetBool("refresh-secret-id")
 		updateConfig, _ := cmd.Flags().GetBool("update-config")
+		statusOnly, _ := cmd.Flags().GetBool("status-only")
 
 		threshold := time.Duration(thresholdMinutes * float64(time.Minute))
 
 		logger.WithFields(logrus.Fields{
 			"threshold_minutes": thresholdMinutes,
-			"force_refresh":     forceRefresh,
 			"refresh_secret_id": refreshSecretID,
 			"update_config":     updateConfig,
+			"status_only":       statusOnly,
 		}).Info("Checking authentication status")
 
 		// Create context with timeout
@@ -416,83 +418,111 @@ This command will:
 				"renewable":     renewable,
 				"expires_at":    vaultClient.GetTokenExpiry().Format(time.RFC3339),
 			}).Info("Current token information")
+
+			fmt.Printf("Token expires at: %s\n", vaultClient.GetTokenExpiry().Format(time.RFC3339))
 		}
 
-		// Handle secret ID refresh if requested
-		if refreshSecretID {
-			if cfg.Vault.AppRoleName == "" {
-				logger.Warn("approle_name not configured in config file - cannot refresh secret ID")
-				fmt.Println("Warning: approle_name must be configured to refresh secret IDs")
-				fmt.Println("Add 'approle_name = \"your-role-name\"' to the [vault] section of your config")
+		// Get secret ID information if approle_name is configured
+		if cfg.Vault.AppRoleName != "" {
+			secretIDInfo, err := vaultClient.GetCurrentSecretIDInfo(ctx)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to get secret ID info")
+				fmt.Printf("Warning: Could not retrieve secret ID information: %v\n", err)
 			} else {
-				logger.Info("Generating new secret ID")
-				newSecretID, err := vaultClient.RefreshSecretID(ctx)
-				if err != nil {
-					return fmt.Errorf("failed to refresh secret ID: %w", err)
-				}
+				// Parse secret ID info
+				creationTime, _ := secretIDInfo["creation_time"].(string)
+				expirationTime, _ := secretIDInfo["expiration_time"].(string)
+				secretIDTTL, _ := secretIDInfo["secret_id_ttl"].(json.Number)
+				secretIDAccessor, _ := secretIDInfo["secret_id_accessor"].(string)
 
-				logger.Info("Successfully generated new secret ID")
+				logger.WithFields(logrus.Fields{
+					"secret_id_accessor": secretIDAccessor,
+					"creation_time":      creationTime,
+					"expiration_time":    expirationTime,
+					"secret_id_ttl":      secretIDTTL,
+				}).Info("Current secret ID information")
 
-				if updateConfig {
-					logger.WithField("config_path", cfgFile).Info("Updating config file with new secret ID")
-					if err := config.UpdateSecretID(cfgFile, newSecretID); err != nil {
-						return fmt.Errorf("failed to update config file: %w", err)
+				if expirationTime != "" {
+					fmt.Printf("Secret ID expires at: %s\n", expirationTime)
+
+					// Check if secret ID is expiring soon
+					secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
+					if err != nil {
+						logger.WithError(err).Debug("Failed to check secret ID expiry")
+					} else if secretIDExpiring {
+						fmt.Printf("⚠️  Secret ID will expire within %v! Consider using --refresh-secret-id\n", threshold)
 					}
-					logger.Info("Config file updated successfully")
-					fmt.Printf("New secret ID saved to config: %s\n", cfgFile)
 				} else {
-					fmt.Printf("New secret ID generated (not saved to config):\n%s\n", newSecretID)
-					fmt.Println("\nTo update your config file manually, set:")
-					fmt.Printf("  secret_id = \"%s\"\n", newSecretID)
+					fmt.Printf("Secret ID TTL: %s seconds (no expiration time available)\n", secretIDTTL)
 				}
-
-				// Update in-memory config for verification
-				cfg.Vault.SecretID = newSecretID
 			}
+		} else {
+			fmt.Println("Note: approle_name not configured - cannot check secret ID expiry")
 		}
 
-		// Check if token is expiring within threshold
-		needsRefresh := forceRefresh || vaultClient.IsTokenExpiringWithin(threshold)
-
-		if !needsRefresh && !refreshSecretID {
-			logger.Info("Token is not expiring soon, no refresh needed")
-			fmt.Printf("Token valid until: %s\n", vaultClient.GetTokenExpiry().Format(time.RFC3339))
+		// If status-only was requested, exit here
+		if statusOnly {
+			fmt.Println("\nStatus check completed.")
 			return nil
 		}
 
-		if needsRefresh {
-			logger.Info("Token expiring soon or forced refresh requested")
-
-			// Check if the token is renewable
-			renewable := false
-			if tokenInfo != nil {
-				renewable, _ = tokenInfo["renewable"].(bool)
-			}
-
-			if renewable && !forceRefresh && !refreshSecretID {
-				// Try to renew the token
-				logger.Info("Attempting to renew token")
-				if err := vaultClient.RenewToken(ctx); err != nil {
-					logger.WithError(err).Warn("Token renewal failed, will re-authenticate")
-					// Fall through to re-authentication
-				} else {
-					logger.Info("Token renewed successfully")
-					fmt.Printf("Token renewed until: %s\n", vaultClient.GetTokenExpiry().Format(time.RFC3339))
-					return nil
-				}
-			}
-
-			// If we can't renew or renewal failed, or if secret ID was refreshed, re-authenticate
-			logger.Info("Re-authenticating with current credentials")
-			if err := vaultClient.Authenticate(ctx); err != nil {
-				return fmt.Errorf("failed to re-authenticate: %w", err)
-			}
-
-			logger.Info("Successfully re-authenticated")
-			fmt.Printf("New token valid until: %s\n", vaultClient.GetTokenExpiry().Format(time.RFC3339))
+		// Validate that approle_name is configured if refresh is requested
+		if refreshSecretID && cfg.Vault.AppRoleName == "" {
+			return fmt.Errorf("approle_name not configured - required for generating new secret IDs\nAdd 'approle_name = \"your-role-name\"' to the [vault] section of your config")
 		}
 
-		fmt.Println("Authentication refresh completed successfully")
+		// Check if secret ID should be refreshed automatically
+		needsSecretIDRefresh := refreshSecretID
+		if cfg.Vault.AppRoleName != "" && !refreshSecretID && !statusOnly {
+			// Check if secret ID is expiring within threshold
+			secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
+			if err != nil {
+				logger.WithError(err).Debug("Failed to check secret ID expiry for auto-refresh")
+			} else if secretIDExpiring {
+				logger.Info("Secret ID is expiring soon, will refresh automatically")
+				needsSecretIDRefresh = true
+				fmt.Printf("🔄 Automatically refreshing secret ID (expires within %v)\n", threshold)
+			}
+		}
+
+		// If we need to refresh secret ID, do it now
+		if needsSecretIDRefresh {
+			logger.Info("Generating new secret ID")
+			newSecretID, err := vaultClient.RefreshSecretID(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to refresh secret ID: %w", err)
+			}
+
+			logger.Info("Successfully generated new secret ID")
+
+			if updateConfig {
+				logger.WithField("config_path", cfgFile).Info("Updating config file with new secret ID")
+				if err := config.UpdateSecretID(cfgFile, newSecretID); err != nil {
+					return fmt.Errorf("failed to update config file: %w", err)
+				}
+				logger.Info("Config file updated successfully")
+				fmt.Printf("✅ New secret ID saved to config: %s\n", cfgFile)
+			} else {
+				fmt.Printf("🆔 New secret ID generated:\n%s\n", newSecretID)
+				fmt.Println("\n💡 To save to config file, use: --update-config")
+				fmt.Println("   Or manually update your config file:")
+				fmt.Printf("   secret_id = \"%s\"\n", newSecretID)
+			}
+
+			// Update in-memory config and re-authenticate to verify new secret ID works
+			cfg.Vault.SecretID = newSecretID
+			logger.Info("Testing new secret ID by re-authenticating")
+			if err := vaultClient.Authenticate(ctx); err != nil {
+				return fmt.Errorf("failed to authenticate with new secret ID: %w", err)
+			}
+			fmt.Println("✅ New secret ID verified successfully")
+		}
+
+		if statusOnly {
+			fmt.Println("\n📊 Status check completed.")
+		} else {
+			fmt.Println("\n✅ Authentication management completed successfully.")
+		}
 
 		return nil
 	},
@@ -517,10 +547,10 @@ func init() {
 	decryptCmd.Flags().StringP("name", "n", "", "custom name for the device mapping")
 
 	// Add flags specific to refresh-auth command
-	refreshAuthCmd.Flags().Float64P("threshold-minutes", "t", 60.0, "minutes before expiry to trigger refresh (default 60 minutes)")
-	refreshAuthCmd.Flags().BoolP("force", "f", false, "force re-authentication even if token could be renewed")
+	refreshAuthCmd.Flags().Float64P("threshold-minutes", "t", 60.0, "minutes before expiry to trigger automatic secret ID refresh")
 	refreshAuthCmd.Flags().BoolP("refresh-secret-id", "s", false, "generate new secret ID (requires approle_name in config)")
-	refreshAuthCmd.Flags().BoolP("update-config", "u", false, "update config file with new secret ID (use with --refresh-secret-id)")
+	refreshAuthCmd.Flags().BoolP("update-config", "u", false, "update config file with new secret ID")
+	refreshAuthCmd.Flags().Bool("status-only", false, "only show authentication status, don't perform any operations")
 }
 
 // configureLogger sets up the logger based on configuration

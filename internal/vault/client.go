@@ -2,6 +2,7 @@ package vault
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -225,39 +226,6 @@ func (c *Client) IsTokenExpiringWithin(threshold time.Duration) bool {
 	return c.tokenExp.Before(expiryThreshold)
 }
 
-// RenewToken attempts to renew the current token
-func (c *Client) RenewToken(ctx context.Context) error {
-	c.logger.Debug("Attempting to renew token")
-
-	// Check if we have a token to renew
-	if c.token == "" {
-		return errors.New("no token to renew")
-	}
-
-	// Attempt to renew the token
-	resp, err := c.client.Auth().Token().RenewSelfWithContext(ctx, 0)
-	if err != nil {
-		return errors.Wrap(err, "failed to renew token")
-	}
-
-	if resp == nil || resp.Auth == nil {
-		return errors.New("empty response from token renewal")
-	}
-
-	// Update token expiration time
-	if resp.Auth.LeaseDuration > 0 {
-		c.tokenExp = time.Now().Add(time.Duration(resp.Auth.LeaseDuration) * time.Second)
-	}
-
-	c.logger.WithFields(logrus.Fields{
-		"new_lease_duration": resp.Auth.LeaseDuration,
-		"expires_at":         c.tokenExp.Format(time.RFC3339),
-		"renewable":          resp.Auth.Renewable,
-	}).Info("Successfully renewed token")
-
-	return nil
-}
-
 // RefreshSecretID generates a new secret ID for the AppRole
 // This requires the AppRoleName to be configured and the role to have the ability to generate its own secret IDs
 func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
@@ -316,6 +284,85 @@ func (c *Client) GetTokenInfo(ctx context.Context) (map[string]interface{}, erro
 	}
 
 	return resp.Data, nil
+}
+
+// GetSecretIDInfo retrieves information about a specific secret ID, including its TTL
+func (c *Client) GetSecretIDInfo(ctx context.Context, secretID string) (map[string]interface{}, error) {
+	if c.config.AppRoleName == "" {
+		return nil, errors.New("approle_name not configured - required for secret ID lookup")
+	}
+
+	if err := c.EnsureAuthenticated(ctx); err != nil {
+		return nil, err
+	}
+
+	// Look up the secret ID information
+	path := fmt.Sprintf("auth/approle/role/%s/secret-id/lookup", c.config.AppRoleName)
+	data := map[string]interface{}{
+		"secret_id": secretID,
+	}
+
+	resp, err := c.client.Logical().WriteWithContext(ctx, path, data)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to lookup secret ID info (role name: %s)", c.config.AppRoleName))
+	}
+
+	if resp == nil || resp.Data == nil {
+		return nil, errors.New("empty response from secret ID lookup")
+	}
+
+	return resp.Data, nil
+}
+
+// GetCurrentSecretIDInfo retrieves information about the currently configured secret ID
+func (c *Client) GetCurrentSecretIDInfo(ctx context.Context) (map[string]interface{}, error) {
+	return c.GetSecretIDInfo(ctx, c.config.SecretID)
+}
+
+// IsSecretIDExpiringWithin checks if the secret ID will expire within the given duration
+func (c *Client) IsSecretIDExpiringWithin(ctx context.Context, threshold time.Duration) (bool, error) {
+	if c.config.AppRoleName == "" {
+		return false, errors.New("approle_name not configured - required for secret ID expiry check")
+	}
+
+	secretIDInfo, err := c.GetCurrentSecretIDInfo(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if expiration_time is available
+	expirationTimeStr, ok := secretIDInfo["expiration_time"].(string)
+	if !ok || expirationTimeStr == "" {
+		// If no expiration time, check if TTL is 0 (never expires)
+		if ttl, ok := secretIDInfo["secret_id_ttl"].(json.Number); ok {
+			ttlInt, _ := ttl.Int64()
+			if ttlInt == 0 {
+				c.logger.Debug("Secret ID has no expiration (TTL=0)")
+				return false, nil
+			}
+		}
+		c.logger.Debug("Secret ID expiration time not available")
+		return false, nil
+	}
+
+	// Parse the expiration time (Vault uses RFC3339 format)
+	expirationTime, err := time.Parse(time.RFC3339, expirationTimeStr)
+	if err != nil {
+		c.logger.WithError(err).Warn("Failed to parse secret ID expiration time")
+		return false, errors.Wrap(err, "failed to parse secret ID expiration time")
+	}
+
+	// Check if expiration is within threshold
+	expiryThreshold := time.Now().Add(threshold)
+	isExpiring := expirationTime.Before(expiryThreshold)
+
+	c.logger.WithFields(logrus.Fields{
+		"expiration_time":   expirationTime.Format(time.RFC3339),
+		"threshold_minutes": threshold.Minutes(),
+		"is_expiring":       isExpiring,
+	}).Debug("Secret ID expiry check")
+
+	return isExpiring, nil
 }
 
 // Close performs any necessary cleanup
