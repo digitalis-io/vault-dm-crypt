@@ -5,7 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axonops/vault-dm-crypt/internal/errors"
+	"axonops/vault-dm-crypt/internal/errors"
 )
 
 // SystemValidator validates system requirements for dm-crypt operations

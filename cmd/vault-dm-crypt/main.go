@@ -12,11 +12,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/axonops/vault-dm-crypt/internal/config"
-	"github.com/axonops/vault-dm-crypt/internal/dmcrypt"
-	"github.com/axonops/vault-dm-crypt/internal/shell"
-	"github.com/axonops/vault-dm-crypt/internal/systemd"
-	"github.com/axonops/vault-dm-crypt/internal/vault"
+	"axonops/vault-dm-crypt/internal/config"
+	"axonops/vault-dm-crypt/internal/dmcrypt"
+	"axonops/vault-dm-crypt/internal/shell"
+	"axonops/vault-dm-crypt/internal/systemd"
+	"axonops/vault-dm-crypt/internal/vault"
 )
 
 var (

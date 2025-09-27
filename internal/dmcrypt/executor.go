@@ -6,7 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/axonops/vault-dm-crypt/internal/shell"
+	"axonops/vault-dm-crypt/internal/shell"
 )
 
 // CommandExecutor interface for executing system commands
