@@ -13,7 +13,7 @@ TimeoutSec=0
 KillSignal=SIGTERM
 KillMode=none
 Environment=VAULT_DM_CRYPT_TIMEOUT=10000
-ExecStart=/bin/sh -c 'vault-dm-crypt --retry $${VAULT_DM_CRYPT_TIMEOUT} decrypt %i'
+ExecStart=/bin/sh -c '/usr/bin/vault-dm-crypt --retry $${VAULT_DM_CRYPT_TIMEOUT} decrypt %i'
 StandardOutput=journal
 StandardError=journal
 # Restrict privileges
