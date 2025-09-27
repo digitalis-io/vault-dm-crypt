@@ -129,8 +129,22 @@ jobs:
             VERSION="${{ github.ref_name }}"
             VERSION="${VERSION#v}"  # Remove 'v' prefix if present
           else
-            VERSION=$(git describe --tags --always --dirty | sed 's/^v//')
-            VERSION="${VERSION}-dev"
+            # Try to get version from git describe
+            if git describe --tags --abbrev=0 2>/dev/null; then
+              # There are tags, use git describe
+              VERSION=$(git describe --tags --always --dirty | sed 's/^v//')
+              VERSION="${VERSION}-dev"
+            else
+              # No tags exist, create a valid version with commit info
+              COMMIT_SHORT=$(git rev-parse --short HEAD)
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              VERSION="0.0.0+git${COMMIT_COUNT}.${COMMIT_SHORT}"
+            fi
+          fi
+
+          # Ensure version starts with a digit (required for Debian)
+          if ! [[ "$VERSION" =~ ^[0-9] ]]; then
+            VERSION="0.0.0+${VERSION}"
           fi
 
           # Update debian changelog with the correct version
