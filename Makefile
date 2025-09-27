@@ -12,7 +12,7 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION) -s -w"
 GOFLAGS := -v
 
 # Go commands
-GOCMD := go
+GOCMD := $(shell which go)
 GOBUILD := $(GOCMD) build
 GOTEST := $(GOCMD) test
 GOVET := $(GOCMD) vet
@@ -111,16 +111,25 @@ test-integration: build
 	fi
 
 # Run integration tests with root privileges
+#test-integration-root: build
+#	@echo "$(GREEN)Running integration tests with root privileges...$(NC)"
+#	@if [ "$(shell id -u)" = "0" ]; then \
+#		if command -v docker &> /dev/null; then \
+#			cd test/integration && $(GOTEST) -v -timeout=15m .; \
+#		else \
+#			echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
+#		fi \
+#	else \
+#		echo "$(YELLOW)Root privileges required. Run: sudo make test-integration-root$(NC)"; \
+#	fi
+
+# Run integration tests with root privileges
 test-integration-root: build
 	@echo "$(GREEN)Running integration tests with root privileges...$(NC)"
-	@if [ "$(shell id -u)" = "0" ]; then \
-		if command -v docker &> /dev/null; then \
-			cd test/integration && $(GOTEST) -v -timeout=15m .; \
-		else \
-			echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
-		fi \
+	if command -v docker &> /dev/null; then \
+		cd test/integration && sudo $(GOTEST) -v -timeout=15m .; \
 	else \
-		echo "$(YELLOW)Root privileges required. Run: sudo make test-integration-root$(NC)"; \
+		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
 	fi
 
 # Run specific test
