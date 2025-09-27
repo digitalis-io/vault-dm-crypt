@@ -16,6 +16,13 @@ Environment=VAULT_DM_CRYPT_TIMEOUT=10000
 ExecStart=/bin/sh -c 'vault-dm-crypt --retry $${VAULT_DM_CRYPT_TIMEOUT} decrypt %i'
 StandardOutput=journal
 StandardError=journal
+# Restrict privileges
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
 
 [Install]
 WantedBy=multi-user.target
