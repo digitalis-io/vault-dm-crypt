@@ -1,4 +1,4 @@
-vault-dm-crypt (1.0.0-1) unstable; urgency=medium
+vault-dm-crypt (0.0.0-1) unstable; urgency=medium
 
   * Initial release
   * Complete Go implementation of vaultlocker functionality
