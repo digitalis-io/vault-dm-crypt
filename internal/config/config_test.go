@@ -34,13 +34,13 @@ func TestConfigValidation(t *testing.T) {
 			name: "valid config",
 			config: &Config{
 				Vault: VaultConfig{
-					URL:        "http://vault:8200",
-					Backend:    "secret",
-					AppRole:    "test-role",
-					SecretID:   "test-secret",
-					Timeout:    30 * time.Second,
-					RetryMax:   3,
-					RetryDelay: 5 * time.Second,
+					URL:            "http://vault:8200",
+					Backend:        "secret",
+					AppRole:        "test-role",
+					SecretID:       "test-secret",
+					TimeoutSecs:    30,
+					RetryMax:       3,
+					RetryDelaySecs: 5,
 				},
 				Logging: LoggingConfig{
 					Level:  "info",
@@ -54,10 +54,10 @@ func TestConfigValidation(t *testing.T) {
 			name: "missing vault URL",
 			config: &Config{
 				Vault: VaultConfig{
-					Backend:  "secret",
-					AppRole:  "test-role",
-					SecretID: "test-secret",
-					Timeout:  30 * time.Second,
+					Backend:     "secret",
+					AppRole:     "test-role",
+					SecretID:    "test-secret",
+					TimeoutSecs: 30,
 				},
 				Logging: LoggingConfig{
 					Level:  "info",
@@ -72,10 +72,10 @@ func TestConfigValidation(t *testing.T) {
 			name: "missing backend",
 			config: &Config{
 				Vault: VaultConfig{
-					URL:      "http://vault:8200",
-					AppRole:  "test-role",
-					SecretID: "test-secret",
-					Timeout:  30 * time.Second,
+					URL:         "http://vault:8200",
+					AppRole:     "test-role",
+					SecretID:    "test-secret",
+					TimeoutSecs: 30,
 				},
 				Logging: LoggingConfig{
 					Level:  "info",
@@ -90,10 +90,10 @@ func TestConfigValidation(t *testing.T) {
 			name: "missing approle",
 			config: &Config{
 				Vault: VaultConfig{
-					URL:      "http://vault:8200",
-					Backend:  "secret",
-					SecretID: "test-secret",
-					Timeout:  30 * time.Second,
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					SecretID:    "test-secret",
+					TimeoutSecs: 30,
 				},
 				Logging: LoggingConfig{
 					Level:  "info",
@@ -108,10 +108,10 @@ func TestConfigValidation(t *testing.T) {
 			name: "missing secret_id",
 			config: &Config{
 				Vault: VaultConfig{
-					URL:     "http://vault:8200",
-					Backend: "secret",
-					AppRole: "test-role",
-					Timeout: 30 * time.Second,
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					AppRole:     "test-role",
+					TimeoutSecs: 30,
 				},
 				Logging: LoggingConfig{
 					Level:  "info",
@@ -126,11 +126,11 @@ func TestConfigValidation(t *testing.T) {
 			name: "invalid log level",
 			config: &Config{
 				Vault: VaultConfig{
-					URL:      "http://vault:8200",
-					Backend:  "secret",
-					AppRole:  "test-role",
-					SecretID: "test-secret",
-					Timeout:  30 * time.Second,
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					AppRole:     "test-role",
+					SecretID:    "test-secret",
+					TimeoutSecs: 30,
 				},
 				Logging: LoggingConfig{
 					Level:  "invalid",
@@ -145,11 +145,11 @@ func TestConfigValidation(t *testing.T) {
 			name: "invalid log format",
 			config: &Config{
 				Vault: VaultConfig{
-					URL:      "http://vault:8200",
-					Backend:  "secret",
-					AppRole:  "test-role",
-					SecretID: "test-secret",
-					Timeout:  30 * time.Second,
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					AppRole:     "test-role",
+					SecretID:    "test-secret",
+					TimeoutSecs: 30,
 				},
 				Logging: LoggingConfig{
 					Level:  "info",
@@ -164,11 +164,11 @@ func TestConfigValidation(t *testing.T) {
 			name: "negative timeout",
 			config: &Config{
 				Vault: VaultConfig{
-					URL:      "http://vault:8200",
-					Backend:  "secret",
-					AppRole:  "test-role",
-					SecretID: "test-secret",
-					Timeout:  -1 * time.Second,
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					AppRole:     "test-role",
+					SecretID:    "test-secret",
+					TimeoutSecs: -1,
 				},
 				Logging: LoggingConfig{
 					Level:  "info",
@@ -293,12 +293,12 @@ backend = python-backend
 func TestConfigWithInvalidCABundle(t *testing.T) {
 	config := &Config{
 		Vault: VaultConfig{
-			URL:      "http://vault:8200",
-			Backend:  "secret",
-			AppRole:  "test-role",
-			SecretID: "test-secret",
-			CABundle: "/non/existent/ca.pem",
-			Timeout:  30 * time.Second,
+			URL:         "http://vault:8200",
+			Backend:     "secret",
+			AppRole:     "test-role",
+			SecretID:    "test-secret",
+			CABundle:    "/non/existent/ca.pem",
+			TimeoutSecs: 30,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -321,12 +321,12 @@ func TestConfigWithValidCABundle(t *testing.T) {
 
 	config := &Config{
 		Vault: VaultConfig{
-			URL:      "http://vault:8200",
-			Backend:  "secret",
-			AppRole:  "test-role",
-			SecretID: "test-secret",
-			CABundle: caPath,
-			Timeout:  30 * time.Second,
+			URL:         "http://vault:8200",
+			Backend:     "secret",
+			AppRole:     "test-role",
+			SecretID:    "test-secret",
+			CABundle:    caPath,
+			TimeoutSecs: 30,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",

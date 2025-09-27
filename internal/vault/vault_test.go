@@ -19,13 +19,13 @@ func TestNewClient(t *testing.T) {
 
 	t.Run("valid configuration", func(t *testing.T) {
 		cfg := &config.VaultConfig{
-			URL:        "http://localhost:8200",
-			Backend:    "secret",
-			AppRole:    "test-role",
-			SecretID:   "test-secret",
-			Timeout:    30 * time.Second,
-			RetryMax:   3,
-			RetryDelay: 5 * time.Second,
+			URL:            "http://localhost:8200",
+			Backend:        "secret",
+			AppRole:        "test-role",
+			SecretID:       "test-secret",
+			TimeoutSecs:    30,
+			RetryMax:       3,
+			RetryDelaySecs: 5,
 		}
 
 		client, err := NewClient(cfg, logger)
@@ -107,10 +107,10 @@ func TestWithRetry(t *testing.T) {
 	logger.SetLevel(logrus.FatalLevel) // Suppress retry logs for tests
 
 	cfg := &config.VaultConfig{
-		URL:        "http://localhost:8200",
-		Backend:    "secret",
-		RetryMax:   3,
-		RetryDelay: 10 * time.Millisecond, // Short delay for tests
+		URL:            "http://localhost:8200",
+		Backend:        "secret",
+		RetryMax:       3,
+		RetryDelaySecs: 1, // Short delay for tests
 	}
 
 	client, err := NewClient(cfg, logger)
@@ -329,13 +329,13 @@ func TestClientAuthenticate(t *testing.T) {
 	logger.SetLevel(logrus.FatalLevel)
 
 	cfg := &config.VaultConfig{
-		URL:        "http://localhost:8200",
-		Backend:    "secret",
-		AppRole:    "test-role",
-		SecretID:   "test-secret",
-		Timeout:    30 * time.Second,
-		RetryMax:   3,
-		RetryDelay: 5 * time.Second,
+		URL:            "http://localhost:8200",
+		Backend:        "secret",
+		AppRole:        "test-role",
+		SecretID:       "test-secret",
+		TimeoutSecs:    30,
+		RetryMax:       3,
+		RetryDelaySecs: 5,
 	}
 
 	client, err := NewClient(cfg, logger)
@@ -694,12 +694,12 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 
 	t.Run("authentication with invalid credentials", func(t *testing.T) {
 		config := &config.VaultConfig{
-			URL:        "http://localhost:8200",
-			Backend:    "secret",
-			AppRole:    "invalid-role",
-			SecretID:   "invalid-secret",
-			RetryMax:   1,
-			RetryDelay: 1,
+			URL:            "http://localhost:8200",
+			Backend:        "secret",
+			AppRole:        "invalid-role",
+			SecretID:       "invalid-secret",
+			RetryMax:       1,
+			RetryDelaySecs: 1,
 		}
 
 		client, err := NewClient(config, logger)
@@ -713,12 +713,12 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 
 	t.Run("authentication with empty role ID", func(t *testing.T) {
 		config := &config.VaultConfig{
-			URL:        "http://localhost:8200",
-			Backend:    "secret",
-			AppRole:    "", // Empty role ID
-			SecretID:   "test-secret",
-			RetryMax:   1,
-			RetryDelay: 1,
+			URL:            "http://localhost:8200",
+			Backend:        "secret",
+			AppRole:        "", // Empty role ID
+			SecretID:       "test-secret",
+			RetryMax:       1,
+			RetryDelaySecs: 1,
 		}
 
 		client, err := NewClient(config, logger)
@@ -733,12 +733,12 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 
 	t.Run("authentication with empty secret ID", func(t *testing.T) {
 		config := &config.VaultConfig{
-			URL:        "http://localhost:8200",
-			Backend:    "secret",
-			AppRole:    "test-role",
-			SecretID:   "", // Empty secret ID
-			RetryMax:   1,
-			RetryDelay: 1,
+			URL:            "http://localhost:8200",
+			Backend:        "secret",
+			AppRole:        "test-role",
+			SecretID:       "", // Empty secret ID
+			RetryMax:       1,
+			RetryDelaySecs: 1,
 		}
 
 		client, err := NewClient(config, logger)
