@@ -24,6 +24,8 @@ type TestFramework struct {
 	loopDevices   []string
 	dockerStarted bool
 	projectRoot   string
+	roleID        string
+	secretID      string
 }
 
 // NewTestFramework creates a new test framework instance
@@ -230,9 +232,8 @@ output = "stdout"
 
 // GetVaultConfig returns the Vault configuration for testing
 func (tf *TestFramework) GetVaultConfig() (vaultAddr, roleID, secretID string) {
-	// Return mock values for testing
-	// In a real test environment, these would come from the actual Vault server
-	return tf.vaultAddr, "test-role-id", "test-secret-id"
+	// Return the actual values from the configured Vault instance
+	return tf.vaultAddr, tf.roleID, tf.secretID
 }
 
 // GetTempDir returns the temporary directory path
@@ -346,7 +347,13 @@ func (tf *TestFramework) startDocker() error {
 
 	// Wait for Vault to be ready
 	tf.logger.Debug("Waiting for Vault to be ready...")
-	return tf.waitForVault()
+	if err := tf.waitForVault(); err != nil {
+		return err
+	}
+
+	// Set up Vault for testing (AppRole, policies, etc.)
+	tf.logger.Debug("Setting up Vault for testing...")
+	return tf.setupVaultForTesting()
 }
 
 // stopDocker stops the Docker containers
@@ -418,4 +425,122 @@ func (tf *TestFramework) findComposeDir() (string, error) {
 	}
 
 	return "", fmt.Errorf("docker-compose.yml not found")
+}
+
+// setupVaultForTesting configures Vault for integration testing
+func (tf *TestFramework) setupVaultForTesting() error {
+	// Enable AppRole auth method
+	if err := tf.runVaultCommand("auth", "enable", "approle"); err != nil {
+		// AppRole might already be enabled, check the error
+		if !strings.Contains(err.Error(), "path is already in use") {
+			return fmt.Errorf("failed to enable AppRole auth: %w", err)
+		}
+	}
+
+	// Create a policy for the test role
+	policyName := "vault-dm-crypt-test-policy"
+	policyRules := `path "secret/data/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "secret/metadata/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "secret/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}`
+
+	// Write policy to a temporary file
+	policyFile := filepath.Join(tf.tempDir, "test-policy.hcl")
+	if err := os.WriteFile(policyFile, []byte(policyRules), 0644); err != nil {
+		return fmt.Errorf("failed to write policy file: %w", err)
+	}
+
+	if err := tf.runVaultCommand("policy", "write", policyName, policyFile); err != nil {
+		return fmt.Errorf("failed to create policy: %w", err)
+	}
+
+	// Create AppRole
+	roleName := "vault-dm-crypt-test-role"
+	if err := tf.runVaultCommand("write", "auth/approle/role/"+roleName,
+		"token_policies="+policyName,
+		"token_ttl=1h",
+		"token_max_ttl=4h"); err != nil {
+		return fmt.Errorf("failed to create AppRole: %w", err)
+	}
+
+	// Get role_id
+	roleIDOutput, err := tf.runVaultCommandWithOutput("read", "-field=role_id", "auth/approle/role/"+roleName+"/role-id")
+	if err != nil {
+		return fmt.Errorf("failed to get role_id: %w", err)
+	}
+	tf.roleID = strings.TrimSpace(roleIDOutput)
+	tf.logger.Debugf("AppRole role_id: %s", tf.roleID)
+
+	// Generate secret_id
+	secretIDOutput, err := tf.runVaultCommandWithOutput("write", "-field=secret_id", "-force", "auth/approle/role/"+roleName+"/secret-id")
+	if err != nil {
+		return fmt.Errorf("failed to generate secret_id: %w", err)
+	}
+	tf.secretID = strings.TrimSpace(secretIDOutput)
+	tf.logger.Debugf("AppRole secret_id: %s", tf.secretID)
+
+	tf.logger.Debug("Vault setup completed successfully")
+	return nil
+}
+
+// runVaultCommand runs a vault command with the configured token
+func (tf *TestFramework) runVaultCommand(args ...string) error {
+	cmd := exec.Command("vault", args...)
+	cmd.Env = append(os.Environ(),
+		"VAULT_ADDR="+tf.vaultAddr,
+		"VAULT_TOKEN="+tf.vaultToken,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("vault command failed: %w, output: %s", err, string(output))
+	}
+	return nil
+}
+
+// runVaultCommandWithOutput runs a vault command and returns the output
+func (tf *TestFramework) runVaultCommandWithOutput(args ...string) (string, error) {
+	cmd := exec.Command("vault", args...)
+	cmd.Env = append(os.Environ(),
+		"VAULT_ADDR="+tf.vaultAddr,
+		"VAULT_TOKEN="+tf.vaultToken,
+	)
+	output, err := cmd.Output()
+	return string(output), err
+}
+
+// runVaultCommandWithStdin runs a vault command with stdin input
+func (tf *TestFramework) runVaultCommandWithStdin(args []string, stdinData string) error {
+	// Extract the last argument if it's "-" (stdin indicator)
+	var cmdArgs []string
+	var useStdin bool
+	for _, arg := range args {
+		if arg == "-" {
+			useStdin = true
+		} else {
+			cmdArgs = append(cmdArgs, arg)
+		}
+	}
+
+	cmd := exec.Command("vault", cmdArgs...)
+	cmd.Env = append(os.Environ(),
+		"VAULT_ADDR="+tf.vaultAddr,
+		"VAULT_TOKEN="+tf.vaultToken,
+	)
+
+	if useStdin {
+		cmd.Stdin = strings.NewReader(stdinData)
+	}
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("vault command failed: %w, output: %s", err, string(output))
+	}
+	return nil
 }
