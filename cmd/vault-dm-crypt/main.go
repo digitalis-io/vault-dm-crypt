@@ -364,16 +364,17 @@ This command will:
 
 var refreshAuthCmd = &cobra.Command{
 	Use:   "refresh-auth",
-	Short: "Check AppRole authentication status and refresh secret ID if needed",
-	Long: `Check AppRole authentication status and manage secret ID lifecycle.
+	Short: "Manage AppRole authentication and refresh secret ID when needed",
+	Long: `Manage AppRole authentication and secret ID lifecycle.
 
-This command will:
-1. Show current token and secret ID expiry information
-2. Generate a new secret ID if requested (--refresh-secret-id) or conditionally (--refresh-if-expiring)
-3. Optionally update the config file with the new secret ID
+By default, this command will:
+1. Check current token and secret ID expiry status
+2. Automatically refresh the secret ID if it expires within 30 minutes
+3. Update the config file with the new secret ID
 
-Since this is a one-shot process, token renewal is not needed as fresh tokens
-are obtained on each run. The focus is on secret ID management for long-term credentials.`,
+Use --status to only view authentication status without making changes.
+Use --force to refresh the secret ID regardless of expiry.
+Use --no-update-config to skip updating the configuration file.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Silence usage for runtime errors (not argument errors)
 		cmd.SilenceUsage = true
@@ -390,29 +391,26 @@ are obtained on each run. The focus is on secret ID management for long-term cre
 			}
 		}
 
-		refreshSecretID, _ := cmd.Flags().GetBool("refresh-secret-id")
-		refreshIfExpiring, _ := cmd.Flags().GetBool("refresh-if-expiring")
-		updateConfig, _ := cmd.Flags().GetBool("update-config")
+		forceRefresh, _ := cmd.Flags().GetBool("force")
+		noUpdateConfig, _ := cmd.Flags().GetBool("no-update-config")
 		statusOnly, _ := cmd.Flags().GetBool("status")
+
+		// Default behavior: update config unless --no-update-config is specified
+		updateConfig := !noUpdateConfig
 
 		threshold := time.Duration(thresholdMinutes * float64(time.Minute))
 
-		// Validate flag combinations early
-		if refreshSecretID && refreshIfExpiring {
-			return fmt.Errorf("cannot use both --refresh-secret-id and --refresh-if-expiring together\nUse --refresh-secret-id to always refresh, or --refresh-if-expiring to refresh only when needed")
-		}
-
-		// Validate that approle_name is configured if refresh is requested
-		if (refreshSecretID || refreshIfExpiring) && cfg.Vault.AppRoleName == "" {
+		// Validate that approle_name is configured if refresh might be needed
+		// (default behavior, force refresh, or when checking expiry)
+		if !statusOnly && cfg.Vault.AppRoleName == "" {
 			return fmt.Errorf("approle_name not configured - required for generating new secret IDs\nAdd 'approle_name = \"your-role-name\"' to the [vault] section of your config")
 		}
 
 		logger.WithFields(logrus.Fields{
-			"threshold_minutes":   thresholdMinutes,
-			"refresh_secret_id":   refreshSecretID,
-			"refresh_if_expiring": refreshIfExpiring,
-			"update_config":       updateConfig,
-			"status_only":         statusOnly,
+			"threshold_minutes": thresholdMinutes,
+			"force_refresh":     forceRefresh,
+			"update_config":     updateConfig,
+			"status_only":       statusOnly,
 		}).Info("Checking authentication status")
 
 		// Create context with timeout
@@ -472,7 +470,7 @@ are obtained on each run. The focus is on secret ID management for long-term cre
 					if err != nil {
 						logger.WithError(err).Debug("Failed to check secret ID expiry")
 					} else if secretIDExpiring {
-						fmt.Printf("⚠️  Secret ID will expire within %v! Consider using --refresh-secret-id\n", threshold)
+						fmt.Printf("⚠️  Secret ID will expire within %v!\n", threshold)
 					}
 				} else {
 					fmt.Printf("Secret ID TTL: %s seconds (no expiration time available)\n", secretIDTTL)
@@ -488,17 +486,24 @@ are obtained on each run. The focus is on secret ID management for long-term cre
 			return nil
 		}
 
-		// Check if secret ID should be refreshed
-		needsSecretIDRefresh := refreshSecretID
+		// Determine if secret ID should be refreshed
+		var needsSecretIDRefresh bool
 
-		// Handle conditional refresh based on expiry
-		if refreshIfExpiring && cfg.Vault.AppRoleName != "" && !statusOnly {
+		if forceRefresh {
+			// Force refresh regardless of expiry
+			logger.Info("Force refresh requested")
+			needsSecretIDRefresh = true
+			fmt.Printf("🔄 Force refresh requested, generating new secret ID\n")
+		} else if cfg.Vault.AppRoleName != "" && !statusOnly {
+			// Default behavior: check if secret ID is expiring
 			secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
 			if err != nil {
 				logger.WithError(err).Warn("Failed to check secret ID expiry")
 				return fmt.Errorf("failed to check secret ID expiry: %w", err)
-			} else if secretIDExpiring {
-				logger.Info("Secret ID is expiring soon, refreshing due to --refresh-if-expiring")
+			}
+
+			if secretIDExpiring {
+				logger.Info("Secret ID is expiring soon, refreshing automatically")
 				needsSecretIDRefresh = true
 				fmt.Printf("🔄 Secret ID expires within %v, refreshing automatically\n", threshold)
 			} else {
@@ -526,7 +531,7 @@ are obtained on each run. The focus is on secret ID management for long-term cre
 				fmt.Printf("✅ New secret ID saved to config: %s\n", cfgFile)
 			} else {
 				fmt.Printf("🆔 New secret ID generated:\n%s\n", newSecretID)
-				fmt.Println("\n💡 To save to config file, use: --update-config")
+				fmt.Println("\n💡 To save to config file, remove the --no-update-config flag")
 				fmt.Println("   Or manually update your config file:")
 				fmt.Printf("   secret_id = \"%s\"\n", newSecretID)
 			}
@@ -569,10 +574,9 @@ func init() {
 	decryptCmd.Flags().StringP("name", "n", "", "custom name for the device mapping")
 
 	// Add flags specific to refresh-auth command
-	refreshAuthCmd.Flags().Float64P("threshold-minutes", "t", 60.0, "minutes before expiry to trigger automatic secret ID refresh")
-	refreshAuthCmd.Flags().BoolP("refresh-secret-id", "s", false, "generate new secret ID (requires approle_name in config)")
-	refreshAuthCmd.Flags().BoolP("refresh-if-expiring", "r", false, "generate new secret ID only if current one expires within threshold")
-	refreshAuthCmd.Flags().BoolP("update-config", "u", false, "update config file with new secret ID")
+	refreshAuthCmd.Flags().Float64P("threshold-minutes", "t", 30.0, "minutes before expiry to trigger automatic secret ID refresh")
+	refreshAuthCmd.Flags().BoolP("force", "f", false, "force refresh of secret ID regardless of expiry")
+	refreshAuthCmd.Flags().Bool("no-update-config", false, "skip updating the config file with new secret ID")
 	refreshAuthCmd.Flags().Bool("status", false, "only show authentication status, don't perform any operations")
 }
 
