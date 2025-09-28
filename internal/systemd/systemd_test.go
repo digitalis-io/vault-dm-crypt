@@ -50,10 +50,7 @@ func (m *MockExecutor) ExecuteWithContext(ctx context.Context, command string, a
 }
 
 func (m *MockExecutor) IsCommandAvailable(command string) bool {
-	if command == "systemctl" {
-		return true
-	}
-	return false
+	return command == "systemctl"
 }
 
 func (m *MockExecutor) ValidateCommands(commands []string) error {

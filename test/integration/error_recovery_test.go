@@ -264,6 +264,7 @@ level = "info"
 
 		timeout := time.After(120 * time.Second)
 		successCount := 0
+		timedOut := false
 		for i := 0; i < numOperations; i++ {
 			select {
 			case err := <-done:
@@ -274,6 +275,9 @@ level = "info"
 				}
 			case <-timeout:
 				t.Logf("Resource exhaustion test timed out after %d/%d operations", successCount, numOperations)
+				timedOut = true
+			}
+			if timedOut {
 				break
 			}
 		}
