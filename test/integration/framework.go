@@ -69,8 +69,9 @@ func (tf *TestFramework) Setup() error {
 
 // Cleanup tears down the test environment
 func (tf *TestFramework) Cleanup() {
-	// Stop Docker containers if we started them
-	if tf.dockerStarted {
+	// Only stop Docker if this framework instance started it
+	// (not if we're using a shared instance)
+	if tf.dockerStarted && !isUsingSharedVault() {
 		tf.stopDocker()
 	}
 
@@ -80,10 +81,15 @@ func (tf *TestFramework) Cleanup() {
 		_ = cmd.Run()
 	}
 
-	// Remove temporary directory
-	if tf.tempDir != "" {
+	// Don't remove temp directory if using shared framework
+	if tf.tempDir != "" && !isUsingSharedVault() {
 		_ = os.RemoveAll(tf.tempDir)
 	}
+}
+
+// isUsingSharedVault checks if we're using the shared Vault instance
+func isUsingSharedVault() bool {
+	return useSharedVault && sharedFramework != nil
 }
 
 // buildBinary compiles the vault-dm-crypt binary for testing
@@ -280,6 +286,12 @@ func (tf *TestFramework) RequireDocker() {
 	if tf.vaultAddr == "" {
 		tf.vaultAddr = "http://localhost:8200"
 		tf.vaultToken = "test-root-token"
+	}
+
+	// If using shared Vault, don't start Docker again
+	if isUsingSharedVault() {
+		// Vault should already be running from TestMain
+		return
 	}
 
 	// Start Docker containers if not already started

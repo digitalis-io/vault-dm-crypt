@@ -19,11 +19,7 @@ import (
 
 // TestErrorRecoveryScenarios tests comprehensive error recovery and edge cases
 func TestErrorRecoveryScenarios(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
+	framework := SetupTest(t)
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)
@@ -256,11 +252,7 @@ level = "info"
 
 // TestEdgeCaseHandling tests various edge cases and boundary conditions
 func TestEdgeCaseHandling(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
+	framework := SetupTest(t)
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)

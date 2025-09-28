@@ -18,12 +18,8 @@ import (
 
 // TestVaultComprehensive tests all aspects of Vault integration
 func TestVaultComprehensive(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
+	framework := SetupTest(t)
 	framework.RequireCommands("vault", "curl", "jq")
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	_, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)
@@ -295,12 +291,8 @@ func TestVaultComprehensive(t *testing.T) {
 
 // TestVaultFailureScenarios tests comprehensive failure scenarios
 func TestVaultFailureScenarios(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
+	framework := SetupTest(t)
 	framework.RequireCommands("vault", "docker")
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)

@@ -17,11 +17,7 @@ import (
 
 // TestAdvancedScenarios tests complex real-world scenarios
 func TestAdvancedScenarios(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
+	framework := SetupTest(t)
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)
@@ -47,11 +43,7 @@ func TestAdvancedScenarios(t *testing.T) {
 
 // TestFailureRecovery tests system behavior during and after failures
 func TestFailureRecovery(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
+	framework := SetupTest(t)
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)

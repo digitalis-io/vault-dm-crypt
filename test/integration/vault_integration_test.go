@@ -14,12 +14,8 @@ import (
 
 // TestVaultIntegration tests basic Vault connectivity and authentication
 func TestVaultIntegration(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
+	framework := SetupTest(t)
 	framework.RequireCommands("vault", "curl")
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)
@@ -69,13 +65,9 @@ func TestVaultIntegration(t *testing.T) {
 
 // TestEndToEndEncryptDecrypt tests the full encrypt/decrypt workflow with loop devices
 func TestEndToEndEncryptDecrypt(t *testing.T) {
-	framework := NewTestFramework(t)
+	framework := SetupTest(t)
 	framework.RequireRoot()
-	framework.RequireDocker()
 	framework.RequireCommands("vault", "curl", "losetup", "dd", "cryptsetup")
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)
@@ -150,11 +142,7 @@ func TestEndToEndEncryptDecrypt(t *testing.T) {
 
 // TestErrorHandling tests various error conditions and edge cases
 func TestErrorHandling(t *testing.T) {
-	framework := NewTestFramework(t)
-	framework.RequireDocker()
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
+	framework := SetupTest(t)
 
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)
@@ -232,10 +220,7 @@ func TestErrorHandling(t *testing.T) {
 
 // TestCommandLineInterface tests CLI argument parsing and validation
 func TestCommandLineInterface(t *testing.T) {
-	framework := NewTestFramework(t)
-
-	require.NoError(t, framework.Setup())
-	defer framework.Cleanup()
+	framework := SetupTest(t)
 
 	t.Run("help_command", func(t *testing.T) {
 		stdout, stderr, err := framework.RunCommand("--help")

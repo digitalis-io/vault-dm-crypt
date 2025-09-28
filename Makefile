@@ -38,7 +38,8 @@ help:
 	@echo "  $(YELLOW)test$(NC)         - Run unit tests only"
 	@echo "  $(YELLOW)test-verbose$(NC) - Run unit tests with verbose output"
 	@echo "  $(YELLOW)test-cover$(NC)   - Run unit tests with coverage"
-	@echo "  $(YELLOW)test-integration$(NC) - Run integration tests only"
+	@echo "  $(YELLOW)test-integration$(NC) - Run integration tests (shared Vault, faster)"
+	@echo "  $(YELLOW)test-integration-isolated$(NC) - Run integration tests (individual Vault per test)"
 	@echo "  $(YELLOW)test-integration-root$(NC) - Run integration tests with root privileges"
 	@echo "  $(YELLOW)test-all$(NC)     - Run all tests (unit + integration)"
 	@echo "  $(YELLOW)fmt$(NC)          - Format code"
@@ -103,11 +104,20 @@ test-cover:
 	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
 
-# Run integration tests (requires build tag)
+# Run integration tests (requires build tag) - uses shared Vault by default
 test-integration: build
-	@echo "$(GREEN)Running integration tests...$(NC)"
+	@echo "$(GREEN)Running integration tests with shared Vault instance...$(NC)"
 	@if command -v docker &> /dev/null; then \
 		$(GOTEST) -v -tags=integration -timeout=10m ./test/integration; \
+	else \
+		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
+	fi
+
+# Run integration tests with individual Vault instances (slower but more isolated)
+test-integration-isolated: build
+	@echo "$(GREEN)Running integration tests with individual Vault instances per test...$(NC)"
+	@if command -v docker &> /dev/null; then \
+		$(GOTEST) -v -tags=integration -timeout=20m ./test/integration -shared-vault=false; \
 	else \
 		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
 	fi

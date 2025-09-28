@@ -62,8 +62,11 @@ make test-verbose
 # Run unit tests with coverage
 make test-cover
 
-# Run integration tests only (requires Docker)
+# Run integration tests with shared Vault instance (faster, default)
 make test-integration
+
+# Run integration tests with individual Vault per test (more isolated)
+make test-integration-isolated
 
 # Run integration tests with root privileges (for dm-crypt operations)
 make test-integration-root
@@ -81,7 +84,14 @@ go test ./...
 go test -v ./...
 
 # Run integration tests directly with go (requires build tag)
+# Default: uses shared Vault instance
 go test -tags=integration ./test/integration
+
+# Run with individual Vault instances per test
+go test -tags=integration ./test/integration -shared-vault=false
+
+# Control via environment variable
+VAULT_TEST_SHARED=true go test -tags=integration ./test/integration
 
 # Run all tests including integration (requires build tag)
 go test ./... && go test -tags=integration ./test/integration
