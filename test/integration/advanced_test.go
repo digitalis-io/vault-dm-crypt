@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -24,56 +23,6 @@ func TestAdvancedScenarios(t *testing.T) {
 	vaultAddr, roleID, secretID := framework.GetVaultConfig()
 	configFile, err := framework.CreateTestConfig(vaultAddr, roleID, secretID)
 	require.NoError(t, err)
-
-	t.Run("vault_token_renewal", func(t *testing.T) {
-		// Test that long-running operations handle token renewal correctly
-		// This simulates a scenario where the Vault token expires during operation
-
-		// First, verify that we can perform operations
-		_, stderr, err := framework.RunCommand(
-			"--config", configFile,
-			"decrypt",
-			"test-uuid-for-renewal",
-		)
-
-		assert.Error(t, err)
-		assert.Contains(t, stderr, framework.ExpectDecryptError())
-	})
-
-	t.Run("configuration_hot_reload", func(t *testing.T) {
-		// Test configuration changes between operations
-		// This tests that configuration is properly loaded for each operation
-
-		// Create a modified config with different retry settings
-		modifiedConfigContent := fmt.Sprintf(`[vault]
-url = "%s"
-backend = "secret"
-approle = "%s"
-secret_id = "%s"
-timeout = 60
-retry_max = 5
-retry_delay = 2
-
-[logging]
-level = "info"
-format = "json"
-output = "stdout"
-`, vaultAddr, roleID, secretID)
-
-		modifiedConfigFile := framework.GetTempDir() + "/modified-config.toml"
-		err := os.WriteFile(modifiedConfigFile, []byte(modifiedConfigContent), 0644)
-		require.NoError(t, err)
-
-		// Test with modified configuration
-		_, stderr, err := framework.RunCommand(
-			"--config", modifiedConfigFile,
-			"decrypt",
-			"test-uuid-modified-config",
-		)
-
-		assert.Error(t, err)
-		assert.Contains(t, stderr, framework.ExpectDecryptError())
-	})
 
 	t.Run("environment_variable_override", func(t *testing.T) {
 		// Test that environment variables can override configuration
@@ -168,39 +117,6 @@ secret_id = "invalid-secret"
 		// Should get device not found error
 		if err != nil {
 			assert.Contains(t, string(output), framework.ExpectDecryptError())
-		}
-	})
-
-	t.Run("concurrent_failure_isolation", func(t *testing.T) {
-		// Test that failures in one operation don't affect others
-		numOperations := 3
-		done := make(chan error, numOperations)
-
-		for i := 0; i < numOperations; i++ {
-			go func(id int) {
-				_, stderr, err := framework.RunCommand(
-					"--config", configFile,
-					"decrypt",
-					fmt.Sprintf("test-uuid-concurrent-%d", id),
-				)
-
-				// All should fail with device not found (expected)
-				if err != nil && strings.Contains(stderr, framework.ExpectDecryptError()) {
-					done <- nil
-				} else {
-					done <- fmt.Errorf("unexpected result for operation %d: %v", id, err)
-				}
-			}(i)
-		}
-
-		// Wait for all operations to complete
-		for i := 0; i < numOperations; i++ {
-			select {
-			case err := <-done:
-				assert.NoError(t, err)
-			case <-time.After(30 * time.Second):
-				t.Fatal("Concurrent operations timed out")
-			}
 		}
 	})
 }

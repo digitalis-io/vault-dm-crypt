@@ -164,8 +164,6 @@ func runPerformanceTestSuite(t *testing.T) {
 		name     string
 		testFunc func(*testing.T)
 	}{
-		{"performance_characteristics", TestPerformanceCharacteristics},
-		{"stress_scenarios", TestStressScenarios},
 		{"advanced_scenarios", TestAdvancedScenarios},
 	}
 

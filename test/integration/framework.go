@@ -134,6 +134,27 @@ func (tf *TestFramework) RunCommand(args ...string) (stdout string, stderr strin
 	cmd := exec.CommandContext(ctx, tf.binaryPath, args...)
 	cmd.Env = append(os.Environ(),
 		"VAULT_ADDR="+tf.vaultAddr,
+	)
+
+	// Capture both stdout and stderr
+	stdoutBytes, err := cmd.CombinedOutput()
+
+	// For now, return combined output as stderr when there's an error
+	if err != nil {
+		return "", string(stdoutBytes), err
+	}
+
+	return string(stdoutBytes), "", nil
+}
+
+// RunVaultCommand runs a vault CLI command with the given arguments (includes VAULT_TOKEN)
+func (tf *TestFramework) RunVaultCommand(args ...string) (stdout string, stderr string, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "vault", args...)
+	cmd.Env = append(os.Environ(),
+		"VAULT_ADDR="+tf.vaultAddr,
 		"VAULT_TOKEN="+tf.vaultToken,
 	)
 
