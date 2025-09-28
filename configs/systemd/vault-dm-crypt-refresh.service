@@ -9,8 +9,8 @@ DefaultDependencies=false
 Type=oneshot
 User=root
 Group=root
-# Run the refresh-auth command with conditional refresh and config update
-ExecStart=/usr/bin/vault-dm-crypt refresh-auth --refresh-if-expiring --update-config --threshold-minutes 60
+# Run the refresh-auth command (default: refresh if expiring within 30 minutes and update config)
+ExecStart=/usr/bin/vault-dm-crypt refresh-auth
 # Set timeout for the operation
 TimeoutSec=300
 # Log output to journal

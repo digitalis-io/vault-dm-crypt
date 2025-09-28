@@ -81,14 +81,20 @@ vault-dm-crypt decrypt <uuid>
 Manage AppRole secret ID lifecycle:
 
 ```bash
-# Check authentication status
+# Check authentication status only (no changes)
 vault-dm-crypt refresh-auth --status
 
-# Refresh secret ID if expiring within 60 minutes
-vault-dm-crypt refresh-auth --refresh-if-expiring --update-config
+# Default: refresh if expiring within 30 minutes and update config
+vault-dm-crypt refresh-auth
 
-# Always generate new secret ID
-vault-dm-crypt refresh-auth --refresh-secret-id --update-config
+# Force refresh regardless of expiry
+vault-dm-crypt refresh-auth --force
+
+# Refresh without updating config file
+vault-dm-crypt refresh-auth --no-update-config
+
+# Custom expiry threshold (e.g., 60 minutes)
+vault-dm-crypt refresh-auth --threshold-minutes 60
 ```
 
 ### Automated Secret ID Refresh

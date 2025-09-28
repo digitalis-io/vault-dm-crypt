@@ -21,7 +21,7 @@ sudo systemctl enable vault-dm-crypt-decrypt@550e8400-e29b-41d4-a716-44665544000
 
 **Features**:
 - Runs every 15 minutes with randomized delay (0-5 minutes)
-- Only refreshes secret ID if it expires within 60 minutes
+- Default behavior: refreshes secret ID if it expires within 30 minutes
 - Automatically updates the default config file (/etc/vault-dm-crypt/config.toml)
 - Includes security hardening and proper logging
 
@@ -106,15 +106,14 @@ sudo journalctl -t vault-dm-crypt --since today
 
 **When secret ID is not expiring**:
 ```
-Status check completed.
-✅ Secret ID is not expiring within 1h0m0s, no refresh needed
+✅ Secret ID is not expiring within 30m0s, no refresh needed
 ✅ Authentication management completed successfully.
 ```
 
 **When secret ID is refreshed**:
 ```
-🔄 Secret ID expires within 1h0m0s, refreshing automatically
-✅ New secret ID saved to config: /etc/vault-dm-crypt/production.toml
+🔄 Secret ID expires within 30m0s, refreshing automatically
+✅ New secret ID saved to config: /etc/vault-dm-crypt/config.toml
 ✅ New secret ID verified successfully
 ✅ Authentication management completed successfully.
 ```
@@ -144,8 +143,14 @@ sudo systemctl start vault-dm-crypt-refresh.timer
 
 ### Authentication Failures
 ```bash
-# Test manually
-sudo vault-dm-crypt --config /etc/vault-dm-crypt/config.toml refresh-auth --status
+# Test manually (status only)
+sudo vault-dm-crypt refresh-auth --status
+
+# Test refresh with default behavior
+sudo vault-dm-crypt refresh-auth
+
+# Force refresh regardless of expiry
+sudo vault-dm-crypt refresh-auth --force
 
 # Check config file permissions
 sudo ls -la /etc/vault-dm-crypt/config.toml
@@ -154,7 +159,7 @@ sudo ls -la /etc/vault-dm-crypt/config.toml
 ### High Frequency Refreshes
 If secret IDs are being refreshed too frequently, check:
 - Vault AppRole configuration (secret ID TTL settings)
-- Threshold setting in the service unit (default: 60 minutes)
+- Threshold setting (default: 30 minutes, can be customized with --threshold-minutes)
 - Timer frequency (default: every 15 minutes)
 
 ## Customization
@@ -181,9 +186,17 @@ sudo systemctl edit vault-dm-crypt-refresh.service
 Add override:
 ```ini
 [Service]
-# Use 2-hour threshold instead of 1 hour
+# Use 2-hour threshold instead of default 30 minutes
 ExecStart=
-ExecStart=/usr/local/bin/vault-dm-crypt --config /etc/vault-dm-crypt/config.toml refresh-auth --refresh-if-expiring --update-config --threshold-minutes 120
+ExecStart=/usr/local/bin/vault-dm-crypt refresh-auth --threshold-minutes 120
+```
+
+### Skip Config Updates
+To prevent automatic config file updates:
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/local/bin/vault-dm-crypt refresh-auth --no-update-config
 ```
 
 After making changes:
