@@ -266,7 +266,7 @@ func TestVaultComprehensive(t *testing.T) {
 		assert.Error(t, err)
 		// When not running as root, system validation fails before Vault auth
 		if framework.IsRoot() {
-			assert.Contains(t, stderr, "authentication failed")
+			assert.Contains(t, stderr, "invalid role or secret ID")
 		} else {
 			assert.Contains(t, stderr, "root privileges")
 		}
