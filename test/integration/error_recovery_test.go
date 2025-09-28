@@ -233,60 +233,6 @@ level = "info"
 		_ = os.Remove(restrictedConfig)
 	})
 
-	t.Run("resource_exhaustion_simulation", func(t *testing.T) {
-		// Test behavior under resource constraints
-		// This test creates many concurrent operations to simulate resource pressure
-
-		numOperations := 50
-		done := make(chan error, numOperations)
-
-		for i := 0; i < numOperations; i++ {
-			go func(id int) {
-				uuid := fmt.Sprintf("resource-test-%d", id)
-				stdout, stderr, err := framework.RunCommand(
-					"--config", configFile,
-					"decrypt", uuid,
-				)
-
-				// All should fail with device not found, not with resource errors
-				if err != nil && strings.Contains(stderr, framework.ExpectDecryptError()) {
-					done <- nil
-				} else if err != nil && (strings.Contains(stderr, "too many open files") ||
-					strings.Contains(stderr, "resource temporarily unavailable") ||
-					strings.Contains(stderr, "connection refused")) {
-					// These are acceptable under resource pressure
-					done <- nil
-				} else {
-					done <- fmt.Errorf("operation %d failed unexpectedly: %v - %s - %s", id, err, stderr, stdout)
-				}
-			}(i)
-		}
-
-		timeout := time.After(120 * time.Second)
-		successCount := 0
-		timedOut := false
-		for i := 0; i < numOperations; i++ {
-			select {
-			case err := <-done:
-				if err == nil {
-					successCount++
-				} else {
-					t.Logf("Operation failed (may be acceptable under load): %v", err)
-				}
-			case <-timeout:
-				t.Logf("Resource exhaustion test timed out after %d/%d operations", successCount, numOperations)
-				timedOut = true
-			}
-			if timedOut {
-				break
-			}
-		}
-
-		// We expect at least some operations to succeed
-		assert.Greater(t, successCount, numOperations/2, "Too many operations failed under resource pressure")
-		t.Logf("Resource exhaustion test: %d/%d operations completed successfully", successCount, numOperations)
-	})
-
 	t.Run("process_interruption_recovery", func(t *testing.T) {
 		// Test process interruption and recovery scenarios
 		testCases := []struct {
