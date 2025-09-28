@@ -183,7 +183,7 @@ func (c *Client) WithRetry(ctx context.Context, operation func() error) error {
 			c.logger.WithFields(logrus.Fields{
 				"attempt":     attempt,
 				"max_retries": c.config.RetryMax,
-				"delay":       c.config.RetryDelay,
+				"delay":       c.config.RetryDelay(),
 			}).Warn("Retrying Vault operation")
 
 			// Wait before retry
