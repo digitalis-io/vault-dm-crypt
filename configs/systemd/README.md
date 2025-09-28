@@ -145,7 +145,7 @@ sudo systemctl start vault-dm-crypt-refresh.timer
 ### Authentication Failures
 ```bash
 # Test manually
-sudo vault-dm-crypt --config /etc/vault-dm-crypt/config.toml refresh-auth --status-only
+sudo vault-dm-crypt --config /etc/vault-dm-crypt/config.toml refresh-auth --status
 
 # Check config file permissions
 sudo ls -la /etc/vault-dm-crypt/config.toml

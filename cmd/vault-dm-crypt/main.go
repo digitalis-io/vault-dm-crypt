@@ -393,7 +393,7 @@ are obtained on each run. The focus is on secret ID management for long-term cre
 		refreshSecretID, _ := cmd.Flags().GetBool("refresh-secret-id")
 		refreshIfExpiring, _ := cmd.Flags().GetBool("refresh-if-expiring")
 		updateConfig, _ := cmd.Flags().GetBool("update-config")
-		statusOnly, _ := cmd.Flags().GetBool("status-only")
+		statusOnly, _ := cmd.Flags().GetBool("status")
 
 		threshold := time.Duration(thresholdMinutes * float64(time.Minute))
 
@@ -482,7 +482,7 @@ are obtained on each run. The focus is on secret ID management for long-term cre
 			fmt.Println("Note: approle_name not configured - cannot check secret ID expiry")
 		}
 
-		// If status-only was requested, exit here
+		// If status was requested, exit here
 		if statusOnly {
 			fmt.Println("\nStatus check completed.")
 			return nil
@@ -573,7 +573,7 @@ func init() {
 	refreshAuthCmd.Flags().BoolP("refresh-secret-id", "s", false, "generate new secret ID (requires approle_name in config)")
 	refreshAuthCmd.Flags().BoolP("refresh-if-expiring", "r", false, "generate new secret ID only if current one expires within threshold")
 	refreshAuthCmd.Flags().BoolP("update-config", "u", false, "update config file with new secret ID")
-	refreshAuthCmd.Flags().Bool("status-only", false, "only show authentication status, don't perform any operations")
+	refreshAuthCmd.Flags().Bool("status", false, "only show authentication status, don't perform any operations")
 }
 
 // configureLogger sets up the logger based on configuration

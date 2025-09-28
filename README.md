@@ -82,7 +82,7 @@ Manage AppRole secret ID lifecycle:
 
 ```bash
 # Check authentication status
-vault-dm-crypt refresh-auth --status-only
+vault-dm-crypt refresh-auth --status
 
 # Refresh secret ID if expiring within 60 minutes
 vault-dm-crypt refresh-auth --refresh-if-expiring --update-config
