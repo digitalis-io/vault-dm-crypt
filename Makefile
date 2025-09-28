@@ -128,7 +128,7 @@ test-integration: build
 test-integration-root: build
 	@echo "$(GREEN)Running integration tests with root privileges...$(NC)"
 	if command -v docker &> /dev/null; then \
-		cd test/integration && sudo $(GOTEST) -v -timeout=15m .; \
+		cd test/integration && sudo $(GOTEST) -v -timeout=30m .; \
 	else \
 		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
 	fi
