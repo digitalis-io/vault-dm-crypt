@@ -11,14 +11,6 @@ import (
 	"testing"
 )
 
-var (
-	// sharedFramework is the globally shared test framework instance
-	sharedFramework *TestFramework
-
-	// useSharedVault controls whether tests share a single Vault instance
-	useSharedVault bool
-)
-
 // TestMain runs once for the entire test suite
 func TestMain(m *testing.M) {
 	// Parse test flags

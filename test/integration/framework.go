@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package integration
 
 import (
@@ -11,6 +14,14 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+)
+
+var (
+	// sharedFramework is the globally shared test framework instance
+	sharedFramework *TestFramework
+
+	// useSharedVault controls whether tests share a single Vault instance
+	useSharedVault bool
 )
 
 // TestFramework provides integration testing infrastructure
