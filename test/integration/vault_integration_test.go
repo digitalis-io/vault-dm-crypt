@@ -219,7 +219,7 @@ func TestErrorHandling(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		if framework.IsRoot() {
+		if !framework.IsRoot() {
 			assert.Contains(t, stderr, "root privileges")
 		} else {
 			assert.Contains(t, stderr, "invalid role or secret ID")
