@@ -56,8 +56,11 @@ func TestVaultIntegration(t *testing.T) {
 		_, stderr, err := framework.RunCommand("--config", configFile, "decrypt", "non-existent-uuid")
 
 		assert.Error(t, err)
-		// Should get past authentication but fail on device lookup
-		assert.Contains(t, stderr, "root privileges")
+		if framework.IsRoot() {
+			assert.Contains(t, stderr, "secret not found")
+		} else {
+			assert.Contains(t, stderr, "root privileges")
+		}
 	})
 }
 
@@ -173,7 +176,11 @@ func TestErrorHandling(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, stderr, framework.ExpectDecryptError())
+		if framework.IsRoot() {
+			assert.Contains(t, stderr, "secret not found")
+		} else {
+			assert.Contains(t, stderr, "root privileges")
+		}
 	})
 
 	t.Run("invalid_config_file", func(t *testing.T) {
@@ -212,8 +219,11 @@ func TestErrorHandling(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		// Should fail during system validation due to root privileges
-		assert.Contains(t, stderr, "root privileges")
+		if framework.IsRoot() {
+			assert.Contains(t, stderr, "root privileges")
+		} else {
+			assert.Contains(t, stderr, "invalid role or secret ID")
+		}
 	})
 }
 

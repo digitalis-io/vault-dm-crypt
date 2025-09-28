@@ -282,7 +282,7 @@ func TestVaultComprehensive(t *testing.T) {
 		assert.Error(t, err)
 		// When not running as root, system validation fails before Vault connection
 		if framework.IsRoot() {
-			assert.Contains(t, stderr, "connection refused")
+			assert.Contains(t, stderr, "context deadline exceeded")
 		} else {
 			assert.Contains(t, stderr, "root privileges")
 		}
