@@ -2,6 +2,7 @@ package vault
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -76,6 +77,90 @@ func (a *AppRoleAuth) Authenticate(ctx context.Context, client *api.Client) (*ap
 // GetName returns the name of this authentication method
 func (a *AppRoleAuth) GetName() string {
 	return "approle"
+}
+
+// TokenAuth implements Token authentication
+type TokenAuth struct {
+	Token  string
+	logger *logrus.Logger
+}
+
+// NewTokenAuth creates a new Token authentication method
+func NewTokenAuth(token string, logger *logrus.Logger) *TokenAuth {
+	return &TokenAuth{
+		Token:  token,
+		logger: logger,
+	}
+}
+
+// Authenticate performs Token authentication (essentially just sets the token)
+func (t *TokenAuth) Authenticate(ctx context.Context, client *api.Client) (*api.Secret, error) {
+	if t.Token == "" {
+		return nil, errors.New("Vault token cannot be empty")
+	}
+
+	t.logger.Debug("Setting Vault token for authentication")
+
+	// Set the token on the client
+	client.SetToken(t.Token)
+
+	// Lookup token info to verify it's valid and get metadata
+	tokenInfo, err := client.Auth().Token().LookupSelfWithContext(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to verify token")
+	}
+
+	if tokenInfo == nil {
+		return nil, errors.New("empty response from token lookup")
+	}
+
+	// Convert token info to auth format for consistency
+	auth := &api.SecretAuth{
+		ClientToken: t.Token,
+		Renewable:   false, // Will be set from token info
+		Policies:    []string{},
+	}
+
+	// Extract relevant fields from token info
+	if tokenInfo.Data != nil {
+		if renewable, ok := tokenInfo.Data["renewable"].(bool); ok {
+			auth.Renewable = renewable
+		}
+		if policies, ok := tokenInfo.Data["policies"].([]interface{}); ok {
+			for _, policy := range policies {
+				if policyStr, ok := policy.(string); ok {
+					auth.Policies = append(auth.Policies, policyStr)
+				}
+			}
+		}
+		if ttl, ok := tokenInfo.Data["ttl"].(json.Number); ok {
+			ttlInt, _ := ttl.Int64()
+			auth.LeaseDuration = int(ttlInt)
+		}
+		if accessor, ok := tokenInfo.Data["accessor"].(string); ok {
+			auth.Accessor = accessor
+		}
+	}
+
+	// Create a response in the same format as AppRole auth
+	resp := &api.Secret{
+		Auth: auth,
+		Data: tokenInfo.Data,
+	}
+
+	t.logger.WithFields(logrus.Fields{
+		"policies":       auth.Policies,
+		"lease_duration": auth.LeaseDuration,
+		"renewable":      auth.Renewable,
+		"accessor":       auth.Accessor,
+	}).Info("Token authentication successful")
+
+	return resp, nil
+}
+
+// GetName returns the name of this authentication method
+func (t *TokenAuth) GetName() string {
+	return "token"
 }
 
 // TokenManager handles token lifecycle

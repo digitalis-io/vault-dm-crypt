@@ -15,11 +15,13 @@ import (
 
 // Client wraps the Vault API client with additional functionality
 type Client struct {
-	client   *api.Client
-	config   *config.VaultConfig
-	logger   *logrus.Logger
-	token    string
-	tokenExp time.Time
+	client       *api.Client
+	config       *config.VaultConfig
+	logger       *logrus.Logger
+	token        string
+	tokenExp     time.Time
+	authMethod   AuthMethod
+	tokenManager *TokenManager
 }
 
 // NewClient creates a new Vault client with the provided configuration
@@ -53,47 +55,40 @@ func NewClient(cfg *config.VaultConfig, logger *logrus.Logger) (*Client, error) 
 		return nil, errors.Wrap(err, "failed to create Vault client")
 	}
 
+	// Determine authentication method
+	var authMethod AuthMethod
+	if cfg.VaultToken != "" {
+		// Use token authentication
+		authMethod = NewTokenAuth(cfg.VaultToken, logger)
+		logger.Debug("Using token authentication")
+	} else {
+		// Use AppRole authentication
+		authMethod = NewAppRoleAuth(cfg.AppRole, cfg.SecretID, logger)
+		logger.Debug("Using AppRole authentication")
+	}
+
+	// Create token manager with the chosen auth method
+	tokenManager := NewTokenManager(client, authMethod, logger)
+
 	return &Client{
-		client: client,
-		config: cfg,
-		logger: logger,
+		client:       client,
+		config:       cfg,
+		logger:       logger,
+		authMethod:   authMethod,
+		tokenManager: tokenManager,
 	}, nil
 }
 
-// Authenticate performs AppRole authentication and sets the client token
+// Authenticate performs authentication using the configured method
 func (c *Client) Authenticate(ctx context.Context) error {
-	c.logger.Debug("Starting AppRole authentication")
-
-	// Prepare authentication data
-	data := map[string]interface{}{
-		"role_id":   c.config.AppRole,
-		"secret_id": c.config.SecretID,
+	// Use token manager for authentication
+	if err := c.tokenManager.Authenticate(ctx); err != nil {
+		return err
 	}
 
-	// Authenticate with AppRole
-	resp, err := c.client.Logical().WriteWithContext(ctx, "auth/approle/login", data)
-	if err != nil {
-		return errors.Wrap(err, "AppRole authentication failed")
-	}
-
-	if resp == nil || resp.Auth == nil {
-		return errors.New("empty authentication response from Vault")
-	}
-
-	// Set the token
-	c.token = resp.Auth.ClientToken
-	c.client.SetToken(c.token)
-
-	// Calculate token expiration
-	if resp.Auth.LeaseDuration > 0 {
-		c.tokenExp = time.Now().Add(time.Duration(resp.Auth.LeaseDuration) * time.Second)
-	}
-
-	c.logger.WithFields(logrus.Fields{
-		"lease_duration": resp.Auth.LeaseDuration,
-		"renewable":      resp.Auth.Renewable,
-		"policies":       resp.Auth.Policies,
-	}).Info("Successfully authenticated with Vault")
+	// Update local token and expiration info
+	c.token = c.tokenManager.GetToken()
+	c.tokenExp = c.tokenManager.GetExpiresAt()
 
 	return nil
 }
@@ -229,6 +224,11 @@ func (c *Client) IsTokenExpiringWithin(threshold time.Duration) bool {
 // RefreshSecretID generates a new secret ID for the AppRole
 // This requires the AppRoleName to be configured and the role to have the ability to generate its own secret IDs
 func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
+	// Check if using token authentication
+	if c.config.VaultToken != "" {
+		return "", errors.New("secret ID refresh not applicable for token authentication")
+	}
+
 	if c.config.AppRoleName == "" {
 		return "", errors.New("approle_name not configured - required for generating new secret IDs")
 	}
@@ -268,6 +268,28 @@ func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
 	return secretID, nil
 }
 
+// RefreshToken attempts to renew the current token (for token authentication)
+func (c *Client) RefreshToken(ctx context.Context) error {
+	// Check if using token authentication
+	if c.config.VaultToken == "" {
+		return errors.New("token refresh only applicable for token authentication")
+	}
+
+	c.logger.Debug("Attempting to refresh Vault token")
+
+	// Use the token manager to renew the token
+	if err := c.tokenManager.Renew(ctx); err != nil {
+		return errors.Wrap(err, "failed to refresh token")
+	}
+
+	// Update local token info
+	c.token = c.tokenManager.GetToken()
+	c.tokenExp = c.tokenManager.GetExpiresAt()
+
+	c.logger.Info("Successfully refreshed Vault token")
+	return nil
+}
+
 // GetTokenInfo retrieves information about the current token
 func (c *Client) GetTokenInfo(ctx context.Context) (map[string]interface{}, error) {
 	if err := c.EnsureAuthenticated(ctx); err != nil {
@@ -288,6 +310,11 @@ func (c *Client) GetTokenInfo(ctx context.Context) (map[string]interface{}, erro
 
 // GetSecretIDInfo retrieves information about a specific secret ID, including its TTL
 func (c *Client) GetSecretIDInfo(ctx context.Context, secretID string) (map[string]interface{}, error) {
+	// Check if using token authentication
+	if c.config.VaultToken != "" {
+		return nil, errors.New("secret ID info not applicable for token authentication")
+	}
+
 	if c.config.AppRoleName == "" {
 		return nil, errors.New("approle_name not configured - required for secret ID lookup")
 	}
@@ -321,6 +348,11 @@ func (c *Client) GetCurrentSecretIDInfo(ctx context.Context) (map[string]interfa
 
 // IsSecretIDExpiringWithin checks if the secret ID will expire within the given duration
 func (c *Client) IsSecretIDExpiringWithin(ctx context.Context, threshold time.Duration) (bool, error) {
+	// Check if using token authentication
+	if c.config.VaultToken != "" {
+		return false, errors.New("secret ID expiry check not applicable for token authentication")
+	}
+
 	if c.config.AppRoleName == "" {
 		return false, errors.New("approle_name not configured - required for secret ID expiry check")
 	}

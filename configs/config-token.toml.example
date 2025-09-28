@@ -1,4 +1,4 @@
-# vault-dm-crypt configuration file
+# vault-dm-crypt configuration file with Token authentication
 # Copy this file to /etc/vault-dm-crypt/config.toml and modify as needed
 
 [vault]
@@ -8,20 +8,9 @@ url = "http://127.0.0.1:8200"
 # Vault backend for storing secrets
 backend = "secret"
 
-# Authentication method: Use either token authentication OR AppRole authentication, not both
-
-# Option 1: Token authentication (simpler setup)
+# Token authentication
 # Use this if you have a Vault token for authentication
-# vault_token = "your-vault-token-here"
-
-# Option 2: AppRole authentication credentials
-# These should be provided by your Vault administrator
-approle = "your-approle-id-here"  # The role_id (UUID)
-secret_id = "your-secret-id-here"
-
-# Optional: AppRole name for generating new secret IDs
-# Required for the refresh-auth command to work with AppRole authentication
-# approle_name = "your-approle-name"
+vault_token = "your-vault-token-here"
 
 # Path to CA certificate bundle for TLS verification
 # Uncomment and set this if using HTTPS with custom CA

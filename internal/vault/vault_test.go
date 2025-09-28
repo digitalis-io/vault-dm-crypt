@@ -720,8 +720,8 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 		ctx := context.Background()
 		err = client.Authenticate(ctx)
 		assert.Error(t, err)
-		// The actual error will be a connection error since no vault server is running
-		assert.Contains(t, err.Error(), "AppRole authentication failed")
+		// The actual error will be from AppRole validation
+		assert.Contains(t, err.Error(), "AppRole ID cannot be empty")
 	})
 
 	t.Run("authentication with empty secret ID", func(t *testing.T) {
@@ -740,8 +740,8 @@ func TestClientAuthenticateErrorConditions(t *testing.T) {
 		ctx := context.Background()
 		err = client.Authenticate(ctx)
 		assert.Error(t, err)
-		// The actual error will be a connection error since no vault server is running
-		assert.Contains(t, err.Error(), "AppRole authentication failed")
+		// The actual error will be from AppRole validation
+		assert.Contains(t, err.Error(), "Secret ID cannot be empty")
 	})
 }
 

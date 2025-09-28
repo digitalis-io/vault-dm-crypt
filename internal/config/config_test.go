@@ -179,6 +179,98 @@ func TestConfigValidation(t *testing.T) {
 			wantErr: true,
 			errMsg:  "vault.timeout",
 		},
+		{
+			name: "valid token authentication",
+			config: &Config{
+				Vault: VaultConfig{
+					URL:            "http://vault:8200",
+					Backend:        "secret",
+					VaultToken:     "test-token",
+					TimeoutSecs:    30,
+					RetryMax:       3,
+					RetryDelaySecs: 5,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+					Output: "stdout",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "both token and approle provided",
+			config: &Config{
+				Vault: VaultConfig{
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					VaultToken:  "test-token",
+					AppRole:     "test-role",
+					SecretID:    "test-secret",
+					TimeoutSecs: 30,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+					Output: "stdout",
+				},
+			},
+			wantErr: true,
+			errMsg:  "mutually exclusive",
+		},
+		{
+			name: "neither token nor approle provided",
+			config: &Config{
+				Vault: VaultConfig{
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					TimeoutSecs: 30,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+					Output: "stdout",
+				},
+			},
+			wantErr: true,
+			errMsg:  "authentication method required",
+		},
+		{
+			name: "approle without secret_id",
+			config: &Config{
+				Vault: VaultConfig{
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					AppRole:     "test-role",
+					TimeoutSecs: 30,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+					Output: "stdout",
+				},
+			},
+			wantErr: true,
+			errMsg:  "Secret ID is required for approle authentication",
+		},
+		{
+			name: "secret_id without approle",
+			config: &Config{
+				Vault: VaultConfig{
+					URL:         "http://vault:8200",
+					Backend:     "secret",
+					SecretID:    "test-secret",
+					TimeoutSecs: 30,
+				},
+				Logging: LoggingConfig{
+					Level:  "info",
+					Format: "json",
+					Output: "stdout",
+				},
+			},
+			wantErr: true,
+			errMsg:  "AppRole ID is required for approle authentication",
+		},
 	}
 
 	for _, tt := range tests {

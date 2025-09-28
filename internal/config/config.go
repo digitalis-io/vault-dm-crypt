@@ -25,6 +25,7 @@ type VaultConfig struct {
 	AppRole        string `mapstructure:"approle"`      // The role_id (UUID)
 	AppRoleName    string `mapstructure:"approle_name"` // Optional: The role name for generating new secret IDs
 	SecretID       string `mapstructure:"secret_id"`
+	VaultToken     string `mapstructure:"vault_token"` // Alternative to AppRole: Vault token for authentication
 	CABundle       string `mapstructure:"ca_bundle"`
 	TimeoutSecs    int    `mapstructure:"timeout"`
 	RetryMax       int    `mapstructure:"retry_max"`
@@ -123,6 +124,7 @@ func bindEnvironmentVariables(v *viper.Viper) {
 	// Vault environment variables (compatible with Vault CLI)
 	_ = v.BindEnv("vault.url", "VAULT_ADDR")
 	_ = v.BindEnv("vault.ca_bundle", "VAULT_CACERT")
+	_ = v.BindEnv("vault.vault_token", "VAULT_TOKEN", "VAULT_DM_CRYPT_VAULT_TOKEN")
 	_ = v.BindEnv("vault.approle", "VAULT_APPROLE", "VAULT_DM_CRYPT_VAULT_APPROLE")
 	_ = v.BindEnv("vault.secret_id", "VAULT_SECRET_ID", "VAULT_DM_CRYPT_VAULT_SECRET_ID")
 
@@ -261,13 +263,30 @@ func (c *Config) Validate() error {
 		return errors.NewConfigError("vault.backend", "backend cannot be empty", nil)
 	}
 
-	// AppRole and SecretID are required for authentication
-	if c.Vault.AppRole == "" {
-		return errors.NewConfigError("vault.approle", "AppRole ID is required for authentication", nil)
+	// Check authentication method: either token or approle, but not both
+	hasToken := c.Vault.VaultToken != ""
+	hasAppRole := c.Vault.AppRole != "" || c.Vault.SecretID != ""
+
+	if hasToken && hasAppRole {
+		return errors.NewConfigError("vault", "vault_token and approle/secret_id are mutually exclusive - use either token authentication or approle authentication, not both", nil)
 	}
 
-	if c.Vault.SecretID == "" {
-		return errors.NewConfigError("vault.secret_id", "Secret ID is required for authentication", nil)
+	if !hasToken && !hasAppRole {
+		return errors.NewConfigError("vault", "authentication method required - provide either vault_token or approle/secret_id", nil)
+	}
+
+	// If using token authentication, just need the token
+	if hasToken {
+		// Token authentication - no additional validation needed
+	} else {
+		// AppRole authentication - both role_id and secret_id are required
+		if c.Vault.AppRole == "" {
+			return errors.NewConfigError("vault.approle", "AppRole ID is required for approle authentication", nil)
+		}
+
+		if c.Vault.SecretID == "" {
+			return errors.NewConfigError("vault.secret_id", "Secret ID is required for approle authentication", nil)
+		}
 	}
 
 	// Validate CA bundle path if specified

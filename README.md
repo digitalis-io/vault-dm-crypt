@@ -14,7 +14,7 @@ using dm-crypt/LUKS with encryption keys stored in HashiCorp Vault.
 - ✅ Encrypt block devices using LUKS/dm-crypt
 - ✅ Store encryption keys securely in HashiCorp Vault
 - ✅ Automatic device decryption on boot via systemd
-- ✅ AppRole authentication for Vault access
+- ✅ Vault authentication (AppRole and Token authentication)
 - ✅ **Automatic secret ID refresh** with systemd timer
 - ✅ **Intelligent secret ID lifecycle management**
 - ✅ Retry mechanism for Vault connectivity
@@ -33,7 +33,7 @@ using dm-crypt/LUKS with encryption keys stored in HashiCorp Vault.
 - ✅ CLI framework with commands (encrypt/decrypt/refresh-auth)
 - ✅ Comprehensive logging infrastructure
 - ✅ Configuration module with TOML support
-- ✅ Vault client integration with AppRole authentication
+- ✅ Vault client integration with AppRole and Token authentication
 - ✅ Secret ID lifecycle management and automatic refresh
 - ✅ SystemD integration for automated operations
 - ✅ Security hardening and proper error handling
@@ -78,19 +78,21 @@ vault-dm-crypt decrypt <uuid>
 
 ### Authentication Management
 
-Manage AppRole secret ID lifecycle:
+Manage authentication credentials lifecycle (AppRole secret ID or Vault token):
 
 ```bash
 # Check authentication status only (no changes)
 vault-dm-crypt refresh-auth --status
 
-# Default: refresh if expiring within 30 minutes and update config
+# Default: refresh if expiring within 30 minutes
+# For AppRole: refreshes secret ID and updates config
+# For Token: attempts to renew the token
 vault-dm-crypt refresh-auth
 
 # Force refresh regardless of expiry
 vault-dm-crypt refresh-auth --force
 
-# Refresh without updating config file
+# Refresh without updating config file (AppRole only)
 vault-dm-crypt refresh-auth --no-update-config
 
 # Custom expiry threshold (e.g., 60 minutes)
@@ -119,6 +121,26 @@ sudo journalctl -u vault-dm-crypt-refresh.service -f
 
 Configuration file is located at `/etc/vault-dm-crypt/config.toml`:
 
+#### Option 1: Token Authentication
+
+```toml
+[vault]
+url = "https://vault.example.com:8200"
+backend = "secret"
+vault_token = "your-vault-token"
+ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
+timeout = 30
+retry_max = 3
+retry_delay = 5
+
+[logging]
+level = "info"
+format = "json"
+output = "/var/log/vault-dm-crypt.log"
+```
+
+#### Option 2: AppRole Authentication
+
 ```toml
 [vault]
 url = "https://vault.example.com:8200"
@@ -136,6 +158,8 @@ level = "info"
 format = "json"
 output = "/var/log/vault-dm-crypt.log"
 ```
+
+**Note**: Use either `vault_token` OR `approle`/`secret_id`, not both. The two authentication methods are mutually exclusive.
 
 ## Development
 

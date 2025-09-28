@@ -364,17 +364,22 @@ This command will:
 
 var refreshAuthCmd = &cobra.Command{
 	Use:   "refresh-auth",
-	Short: "Manage AppRole authentication and refresh secret ID when needed",
-	Long: `Manage AppRole authentication and secret ID lifecycle.
+	Short: "Manage authentication and refresh credentials when needed",
+	Long: `Manage authentication credentials lifecycle (AppRole secret ID or Vault token).
 
-By default, this command will:
+For AppRole authentication, this command will:
 1. Check current token and secret ID expiry status
 2. Automatically refresh the secret ID if it expires within 30 minutes
 3. Update the config file with the new secret ID
 
+For Token authentication, this command will:
+1. Check current token expiry status
+2. Attempt to renew the token if it expires within 30 minutes
+3. Note that token renewal may fail if the token is not renewable
+
 Use --status to only view authentication status without making changes.
-Use --force to refresh the secret ID regardless of expiry.
-Use --no-update-config to skip updating the configuration file.`,
+Use --force to refresh credentials regardless of expiry.
+Use --no-update-config to skip updating the configuration file (AppRole only).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Silence usage for runtime errors (not argument errors)
 		cmd.SilenceUsage = true
@@ -400,9 +405,12 @@ Use --no-update-config to skip updating the configuration file.`,
 
 		threshold := time.Duration(thresholdMinutes * float64(time.Minute))
 
-		// Validate that approle_name is configured if refresh might be needed
+		// Check authentication method
+		isTokenAuth := cfg.Vault.VaultToken != ""
+
+		// Validate that approle_name is configured if refresh might be needed (for AppRole auth)
 		// (default behavior, force refresh, or when checking expiry)
-		if !statusOnly && cfg.Vault.AppRoleName == "" {
+		if !statusOnly && !isTokenAuth && cfg.Vault.AppRoleName == "" {
 			return fmt.Errorf("approle_name not configured - required for generating new secret IDs\nAdd 'approle_name = \"your-role-name\"' to the [vault] section of your config")
 		}
 
@@ -442,42 +450,48 @@ Use --no-update-config to skip updating the configuration file.`,
 			fmt.Printf("Token expires at: %s\n", vaultClient.GetTokenExpiry().Format(time.RFC3339))
 		}
 
-		// Get secret ID information if approle_name is configured
-		if cfg.Vault.AppRoleName != "" {
-			secretIDInfo, err := vaultClient.GetCurrentSecretIDInfo(ctx)
-			if err != nil {
-				logger.WithError(err).Warn("Failed to get secret ID info")
-				fmt.Printf("Warning: Could not retrieve secret ID information: %v\n", err)
-			} else {
-				// Parse secret ID info
-				creationTime, _ := secretIDInfo["creation_time"].(string)
-				expirationTime, _ := secretIDInfo["expiration_time"].(string)
-				secretIDTTL, _ := secretIDInfo["secret_id_ttl"].(json.Number)
-				secretIDAccessor, _ := secretIDInfo["secret_id_accessor"].(string)
-
-				logger.WithFields(logrus.Fields{
-					"secret_id_accessor": secretIDAccessor,
-					"creation_time":      creationTime,
-					"expiration_time":    expirationTime,
-					"secret_id_ttl":      secretIDTTL,
-				}).Info("Current secret ID information")
-
-				if expirationTime != "" {
-					fmt.Printf("Secret ID expires at: %s\n", expirationTime)
-
-					// Check if secret ID is expiring soon
-					secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
-					if err != nil {
-						logger.WithError(err).Debug("Failed to check secret ID expiry")
-					} else if secretIDExpiring {
-						fmt.Printf("⚠️  Secret ID will expire within %v!\n", threshold)
-					}
-				} else {
-					fmt.Printf("Secret ID TTL: %s seconds (no expiration time available)\n", secretIDTTL)
-				}
-			}
+		// Handle authentication-specific information
+		if isTokenAuth {
+			// Token authentication - no secret ID info to display
+			fmt.Println("Using token authentication - no secret ID management needed")
 		} else {
-			fmt.Println("Note: approle_name not configured - cannot check secret ID expiry")
+			// AppRole authentication - get secret ID information if approle_name is configured
+			if cfg.Vault.AppRoleName != "" {
+				secretIDInfo, err := vaultClient.GetCurrentSecretIDInfo(ctx)
+				if err != nil {
+					logger.WithError(err).Warn("Failed to get secret ID info")
+					fmt.Printf("Warning: Could not retrieve secret ID information: %v\n", err)
+				} else {
+					// Parse secret ID info
+					creationTime, _ := secretIDInfo["creation_time"].(string)
+					expirationTime, _ := secretIDInfo["expiration_time"].(string)
+					secretIDTTL, _ := secretIDInfo["secret_id_ttl"].(json.Number)
+					secretIDAccessor, _ := secretIDInfo["secret_id_accessor"].(string)
+
+					logger.WithFields(logrus.Fields{
+						"secret_id_accessor": secretIDAccessor,
+						"creation_time":      creationTime,
+						"expiration_time":    expirationTime,
+						"secret_id_ttl":      secretIDTTL,
+					}).Info("Current secret ID information")
+
+					if expirationTime != "" {
+						fmt.Printf("Secret ID expires at: %s\n", expirationTime)
+
+						// Check if secret ID is expiring soon
+						secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
+						if err != nil {
+							logger.WithError(err).Debug("Failed to check secret ID expiry")
+						} else if secretIDExpiring {
+							fmt.Printf("⚠️  Secret ID will expire within %v!\n", threshold)
+						}
+					} else {
+						fmt.Printf("Secret ID TTL: %s seconds (no expiration time available)\n", secretIDTTL)
+					}
+				}
+			} else {
+				fmt.Println("Note: approle_name not configured - cannot check secret ID expiry")
+			}
 		}
 
 		// If status was requested, exit here
@@ -486,63 +500,105 @@ Use --no-update-config to skip updating the configuration file.`,
 			return nil
 		}
 
-		// Determine if secret ID should be refreshed
-		var needsSecretIDRefresh bool
+		// Determine if refresh is needed based on authentication type
+		if isTokenAuth {
+			// Token authentication - handle token refresh
+			var needsTokenRefresh bool
 
-		if forceRefresh {
-			// Force refresh regardless of expiry
-			logger.Info("Force refresh requested")
-			needsSecretIDRefresh = true
-			fmt.Printf("🔄 Force refresh requested, generating new secret ID\n")
-		} else if cfg.Vault.AppRoleName != "" && !statusOnly {
-			// Default behavior: check if secret ID is expiring
-			secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
-			if err != nil {
-				logger.WithError(err).Warn("Failed to check secret ID expiry")
-				return fmt.Errorf("failed to check secret ID expiry: %w", err)
-			}
+			if forceRefresh {
+				// Force refresh regardless of expiry
+				logger.Info("Force refresh requested for token")
+				needsTokenRefresh = true
+				fmt.Printf("🔄 Force refresh requested, attempting to renew token\n")
+			} else if !statusOnly {
+				// Check if token is expiring within threshold
+				tokenExpiring := vaultClient.IsTokenExpiringWithin(threshold)
 
-			if secretIDExpiring {
-				logger.Info("Secret ID is expiring soon, refreshing automatically")
-				needsSecretIDRefresh = true
-				fmt.Printf("🔄 Secret ID expires within %v, refreshing automatically\n", threshold)
-			} else {
-				logger.Info("Secret ID is not expiring soon, no refresh needed")
-				fmt.Printf("✅ Secret ID is not expiring within %v, no refresh needed\n", threshold)
-			}
-		}
-
-		// If we need to refresh secret ID, do it now
-		if needsSecretIDRefresh {
-			logger.Info("Generating new secret ID")
-			newSecretID, err := vaultClient.RefreshSecretID(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to refresh secret ID: %w", err)
-			}
-
-			logger.Info("Successfully generated new secret ID")
-
-			if updateConfig {
-				logger.WithField("config_path", cfgFile).Info("Updating config file with new secret ID")
-				if err := config.UpdateSecretID(cfgFile, newSecretID); err != nil {
-					return fmt.Errorf("failed to update config file: %w", err)
+				if tokenExpiring {
+					logger.Info("Token is expiring soon, refreshing automatically")
+					needsTokenRefresh = true
+					fmt.Printf("🔄 Token expires within %v, refreshing automatically\n", threshold)
+				} else {
+					logger.Info("Token is not expiring soon, no refresh needed")
+					fmt.Printf("✅ Token is not expiring within %v, no refresh needed\n", threshold)
 				}
-				logger.Info("Config file updated successfully")
-				fmt.Printf("✅ New secret ID saved to config: %s\n", cfgFile)
-			} else {
-				fmt.Printf("🆔 New secret ID generated:\n%s\n", newSecretID)
-				fmt.Println("\n💡 To save to config file, remove the --no-update-config flag")
-				fmt.Println("   Or manually update your config file:")
-				fmt.Printf("   secret_id = \"%s\"\n", newSecretID)
 			}
 
-			// Update in-memory config and re-authenticate to verify new secret ID works
-			cfg.Vault.SecretID = newSecretID
-			logger.Info("Testing new secret ID by re-authenticating")
-			if err := vaultClient.Authenticate(ctx); err != nil {
-				return fmt.Errorf("failed to authenticate with new secret ID: %w", err)
+			// If we need to refresh token, do it now
+			if needsTokenRefresh {
+				logger.Info("Attempting to renew token")
+				if err := vaultClient.RefreshToken(ctx); err != nil {
+					// Token refresh might fail if non-renewable
+					logger.WithError(err).Warn("Token refresh failed")
+					fmt.Printf("⚠️  Token refresh failed: %v\n", err)
+					fmt.Println("Note: Token may not be renewable. You may need to generate a new token.")
+				} else {
+					logger.Info("Successfully renewed token")
+					fmt.Println("✅ Token renewed successfully")
+
+					// Display new expiry
+					fmt.Printf("New token expiry: %s\n", vaultClient.GetTokenExpiry().Format(time.RFC3339))
+				}
 			}
-			fmt.Println("✅ New secret ID verified successfully")
+		} else {
+			// AppRole authentication - handle secret ID refresh
+			var needsSecretIDRefresh bool
+
+			if forceRefresh {
+				// Force refresh regardless of expiry
+				logger.Info("Force refresh requested")
+				needsSecretIDRefresh = true
+				fmt.Printf("🔄 Force refresh requested, generating new secret ID\n")
+			} else if cfg.Vault.AppRoleName != "" && !statusOnly {
+				// Default behavior: check if secret ID is expiring
+				secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
+				if err != nil {
+					logger.WithError(err).Warn("Failed to check secret ID expiry")
+					return fmt.Errorf("failed to check secret ID expiry: %w", err)
+				}
+
+				if secretIDExpiring {
+					logger.Info("Secret ID is expiring soon, refreshing automatically")
+					needsSecretIDRefresh = true
+					fmt.Printf("🔄 Secret ID expires within %v, refreshing automatically\n", threshold)
+				} else {
+					logger.Info("Secret ID is not expiring soon, no refresh needed")
+					fmt.Printf("✅ Secret ID is not expiring within %v, no refresh needed\n", threshold)
+				}
+			}
+
+			// If we need to refresh secret ID, do it now
+			if needsSecretIDRefresh {
+				logger.Info("Generating new secret ID")
+				newSecretID, err := vaultClient.RefreshSecretID(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to refresh secret ID: %w", err)
+				}
+
+				logger.Info("Successfully generated new secret ID")
+
+				if updateConfig {
+					logger.WithField("config_path", cfgFile).Info("Updating config file with new secret ID")
+					if err := config.UpdateSecretID(cfgFile, newSecretID); err != nil {
+						return fmt.Errorf("failed to update config file: %w", err)
+					}
+					logger.Info("Config file updated successfully")
+					fmt.Printf("✅ New secret ID saved to config: %s\n", cfgFile)
+				} else {
+					fmt.Printf("🆔 New secret ID generated:\n%s\n", newSecretID)
+					fmt.Println("\n💡 To save to config file, remove the --no-update-config flag")
+					fmt.Println("   Or manually update your config file:")
+					fmt.Printf("   secret_id = \"%s\"\n", newSecretID)
+				}
+
+				// Update in-memory config and re-authenticate to verify new secret ID works
+				cfg.Vault.SecretID = newSecretID
+				logger.Info("Testing new secret ID by re-authenticating")
+				if err := vaultClient.Authenticate(ctx); err != nil {
+					return fmt.Errorf("failed to authenticate with new secret ID: %w", err)
+				}
+				fmt.Println("✅ New secret ID verified successfully")
+			}
 		}
 
 		if statusOnly {
