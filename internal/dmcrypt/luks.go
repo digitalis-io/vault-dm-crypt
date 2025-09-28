@@ -279,21 +279,21 @@ func (lm *LUKSManager) createTemporaryKeyFile(keyBytes []byte) (string, error) {
 
 	// Set restrictive permissions (readable only by owner)
 	if err := tmpFile.Chmod(0600); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to set key file permissions: %w", err)
 	}
 
 	// Write the key to the file
 	if _, err := tmpFile.Write(keyBytes); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to write key to file: %w", err)
 	}
 
 	// Close the file
 	if err := tmpFile.Close(); err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to close key file: %w", err)
 	}
 
@@ -315,12 +315,12 @@ func (lm *LUKSManager) cleanupKeyFile(keyFile string) {
 			if size > 0 {
 				randomData := make([]byte, size)
 				if _, err := io.ReadFull(rand.Reader, randomData); err == nil {
-					file.WriteAt(randomData, 0)
-					file.Sync()
+					_, _ = file.WriteAt(randomData, 0)
+					_ = file.Sync()
 				}
 			}
 		}
-		file.Close()
+		_ = file.Close()
 	}
 
 	// Remove the file

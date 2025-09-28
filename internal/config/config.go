@@ -121,21 +121,21 @@ func Load(configPath string) (*Config, error) {
 // bindEnvironmentVariables binds specific environment variables for compatibility
 func bindEnvironmentVariables(v *viper.Viper) {
 	// Vault environment variables (compatible with Vault CLI)
-	v.BindEnv("vault.url", "VAULT_ADDR")
-	v.BindEnv("vault.ca_bundle", "VAULT_CACERT")
-	v.BindEnv("vault.approle", "VAULT_APPROLE", "VAULT_DM_CRYPT_VAULT_APPROLE")
-	v.BindEnv("vault.secret_id", "VAULT_SECRET_ID", "VAULT_DM_CRYPT_VAULT_SECRET_ID")
+	_ = v.BindEnv("vault.url", "VAULT_ADDR")
+	_ = v.BindEnv("vault.ca_bundle", "VAULT_CACERT")
+	_ = v.BindEnv("vault.approle", "VAULT_APPROLE", "VAULT_DM_CRYPT_VAULT_APPROLE")
+	_ = v.BindEnv("vault.secret_id", "VAULT_SECRET_ID", "VAULT_DM_CRYPT_VAULT_SECRET_ID")
 
 	// Custom environment variables
-	v.BindEnv("vault.backend", "VAULT_DM_CRYPT_VAULT_BACKEND")
-	v.BindEnv("vault.timeout", "VAULT_DM_CRYPT_VAULT_TIMEOUT")
-	v.BindEnv("vault.retry_max", "VAULT_DM_CRYPT_VAULT_RETRY_MAX")
-	v.BindEnv("vault.retry_delay", "VAULT_DM_CRYPT_VAULT_RETRY_DELAY")
+	_ = v.BindEnv("vault.backend", "VAULT_DM_CRYPT_VAULT_BACKEND")
+	_ = v.BindEnv("vault.timeout", "VAULT_DM_CRYPT_VAULT_TIMEOUT")
+	_ = v.BindEnv("vault.retry_max", "VAULT_DM_CRYPT_VAULT_RETRY_MAX")
+	_ = v.BindEnv("vault.retry_delay", "VAULT_DM_CRYPT_VAULT_RETRY_DELAY")
 
 	// Logging environment variables
-	v.BindEnv("logging.level", "VAULT_DM_CRYPT_LOG_LEVEL")
-	v.BindEnv("logging.format", "VAULT_DM_CRYPT_LOG_FORMAT")
-	v.BindEnv("logging.output", "VAULT_DM_CRYPT_LOG_OUTPUT")
+	_ = v.BindEnv("logging.level", "VAULT_DM_CRYPT_LOG_LEVEL")
+	_ = v.BindEnv("logging.format", "VAULT_DM_CRYPT_LOG_FORMAT")
+	_ = v.BindEnv("logging.output", "VAULT_DM_CRYPT_LOG_OUTPUT")
 }
 
 // setDefaults sets default values in viper
@@ -171,7 +171,7 @@ func UpdateSecretID(configPath string, newSecretID string) error {
 		// Check if we're entering a section
 		if strings.HasPrefix(trimmedLine, "[") {
 			// Check if it's the vault section
-			inVaultSection = (trimmedLine == "[vault]")
+			inVaultSection = trimmedLine == "[vault]"
 		}
 
 		// If we're in the vault section and find secret_id
@@ -229,21 +229,21 @@ func UpdateSecretID(configPath string, newSecretID string) error {
 
 	// Write content
 	if _, err := tempFile.WriteString(newContent); err != nil {
-		tempFile.Close()
-		os.Remove(tempFileName)
+		_ = tempFile.Close()
+		_ = os.Remove(tempFileName)
 		return errors.Wrap(err, "failed to write temp file")
 	}
-	tempFile.Close()
+	_ = tempFile.Close()
 
 	// Set the same permissions as the original file
 	if err := os.Chmod(tempFileName, fileInfo.Mode()); err != nil {
-		os.Remove(tempFileName)
+		_ = os.Remove(tempFileName)
 		return errors.Wrap(err, "failed to set file permissions")
 	}
 
 	// Atomically replace the original file
 	if err := os.Rename(tempFileName, configPath); err != nil {
-		os.Remove(tempFileName)
+		_ = os.Remove(tempFileName)
 		return errors.Wrap(err, "failed to replace config file")
 	}
 
