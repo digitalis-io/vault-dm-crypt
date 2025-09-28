@@ -35,11 +35,12 @@ help:
 	@echo "$(GREEN)Available targets:$(NC)"
 	@echo "  $(YELLOW)build$(NC)        - Build the binary"
 	@echo "  $(YELLOW)clean$(NC)        - Remove build artifacts"
-	@echo "  $(YELLOW)test$(NC)         - Run unit tests"
+	@echo "  $(YELLOW)test$(NC)         - Run unit tests only"
 	@echo "  $(YELLOW)test-verbose$(NC) - Run unit tests with verbose output"
 	@echo "  $(YELLOW)test-cover$(NC)   - Run unit tests with coverage"
-	@echo "  $(YELLOW)test-integration$(NC) - Run integration tests"
+	@echo "  $(YELLOW)test-integration$(NC) - Run integration tests only"
 	@echo "  $(YELLOW)test-integration-root$(NC) - Run integration tests with root privileges"
+	@echo "  $(YELLOW)test-all$(NC)     - Run all tests (unit + integration)"
 	@echo "  $(YELLOW)fmt$(NC)          - Format code"
 	@echo "  $(YELLOW)vet$(NC)          - Run go vet"
 	@echo "  $(YELLOW)lint$(NC)         - Run golangci-lint (if installed)"
@@ -85,28 +86,28 @@ clean:
 	@$(GOCMD) clean
 	@echo "$(GREEN)Clean complete$(NC)"
 
-# Run unit tests
+# Run unit tests (excludes integration tests by default)
 test:
 	@echo "$(GREEN)Running unit tests...$(NC)"
-	@$(GOTEST) $(shell go list ./... | grep -v ./test/integration)
+	@$(GOTEST) ./...
 
 # Run unit tests with verbose output
 test-verbose:
 	@echo "$(GREEN)Running unit tests (verbose)...$(NC)"
-	@$(GOTEST) -v $(shell go list ./... | grep -v ./test/integration)
+	@$(GOTEST) -v ./...
 
 # Run unit tests with coverage
 test-cover:
 	@echo "$(GREEN)Running unit tests with coverage...$(NC)"
-	@$(GOTEST) -cover -coverprofile=coverage.out $(shell go list ./... | grep -v ./test/integration)
+	@$(GOTEST) -cover -coverprofile=coverage.out ./...
 	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
 
-# Run integration tests
+# Run integration tests (requires build tag)
 test-integration: build
 	@echo "$(GREEN)Running integration tests...$(NC)"
 	@if command -v docker &> /dev/null; then \
-		cd test/integration && $(GOTEST) -v -timeout=10m .; \
+		$(GOTEST) -v -tags=integration -timeout=10m ./test/integration; \
 	else \
 		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
 	fi
@@ -128,7 +129,17 @@ test-integration: build
 test-integration-root: build
 	@echo "$(GREEN)Running integration tests with root privileges...$(NC)"
 	if command -v docker &> /dev/null; then \
-		cd test/integration && sudo $(GOTEST) -v -timeout=30m .; \
+		sudo $(GOTEST) -v -tags=integration -timeout=30m ./test/integration; \
+	else \
+		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
+	fi
+
+# Run all tests (unit + integration)
+test-all:
+	@echo "$(GREEN)Running all tests (unit + integration)...$(NC)"
+	@$(GOTEST) ./...
+	@if command -v docker &> /dev/null; then \
+		@$(GOTEST) ./... && $(GOTEST) -v -tags=integration -timeout=30m ./test/integration; \
 	else \
 		echo "$(YELLOW)Docker not available, skipping integration tests$(NC)"; \
 	fi

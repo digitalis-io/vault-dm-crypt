@@ -53,23 +53,38 @@ go build -race -o vault-dm-crypt ./cmd/vault-dm-crypt
 ### Testing
 
 ```bash
-# Run all tests using Makefile
+# Run unit tests only (excludes integration tests by default)
 make test
 
-# Run tests with verbose output
+# Run unit tests with verbose output
 make test-verbose
 
-# Run tests with coverage
+# Run unit tests with coverage
 make test-cover
+
+# Run integration tests only (requires Docker)
+make test-integration
+
+# Run integration tests with root privileges (for dm-crypt operations)
+make test-integration-root
+
+# Run all tests (unit + integration)
+make test-all
 
 # Run specific test
 TEST=TestName make test-run
 
-# Run all tests directly with go
+# Run unit tests directly with go (excludes integration tests)
 go test ./...
 
-# Run tests with verbose output
+# Run unit tests with verbose output
 go test -v ./...
+
+# Run integration tests directly with go (requires build tag)
+go test -tags=integration ./test/integration
+
+# Run all tests including integration (requires build tag)
+go test ./... && go test -tags=integration ./test/integration
 
 # Run tests with coverage
 go test -cover ./...
