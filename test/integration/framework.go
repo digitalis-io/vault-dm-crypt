@@ -15,13 +15,15 @@ import (
 
 // TestFramework provides integration testing infrastructure
 type TestFramework struct {
-	t           *testing.T
-	logger      *logrus.Logger
-	vaultAddr   string
-	vaultToken  string
-	tempDir     string
-	binaryPath  string
-	loopDevices []string
+	t             *testing.T
+	logger        *logrus.Logger
+	vaultAddr     string
+	vaultToken    string
+	tempDir       string
+	binaryPath    string
+	loopDevices   []string
+	dockerStarted bool
+	projectRoot   string
 }
 
 // NewTestFramework creates a new test framework instance
@@ -37,6 +39,13 @@ func NewTestFramework(t *testing.T) *TestFramework {
 
 // Setup initializes the test environment
 func (tf *TestFramework) Setup() error {
+	// Find project root early
+	projectRoot, err := tf.findProjectRoot()
+	if err != nil {
+		return fmt.Errorf("failed to find project root: %w", err)
+	}
+	tf.projectRoot = projectRoot
+
 	// Create temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "vault-dm-crypt-test-*")
 	if err != nil {
@@ -49,8 +58,7 @@ func (tf *TestFramework) Setup() error {
 		return fmt.Errorf("failed to build binary: %w", err)
 	}
 
-	// Note: In a real test environment, you would start a Vault server here
-	// For now, we're using a mock configuration
+	// Set Vault configuration
 	tf.vaultAddr = "http://localhost:8200"
 	tf.vaultToken = "test-root-token"
 
@@ -59,6 +67,11 @@ func (tf *TestFramework) Setup() error {
 
 // Cleanup tears down the test environment
 func (tf *TestFramework) Cleanup() {
+	// Stop Docker containers if we started them
+	if tf.dockerStarted {
+		tf.stopDocker()
+	}
+
 	// Clean up loop devices
 	for _, device := range tf.loopDevices {
 		cmd := exec.Command("losetup", "-d", device)
@@ -73,10 +86,7 @@ func (tf *TestFramework) Cleanup() {
 
 // buildBinary compiles the vault-dm-crypt binary for testing
 func (tf *TestFramework) buildBinary() error {
-	projectRoot, err := tf.findProjectRoot()
-	if err != nil {
-		return err
-	}
+	projectRoot := tf.projectRoot
 
 	// Use the pre-built binary from the build directory
 	preBuildBinaryPath := filepath.Join(projectRoot, "build", "vault-dm-crypt")
@@ -242,10 +252,42 @@ func (tf *TestFramework) RequireRoot() {
 	}
 }
 
-// RequireDocker skips the test if Docker is not available
+// RequireDocker skips the test if Docker is not available, otherwise starts Vault container
 func (tf *TestFramework) RequireDocker() {
-	// For now, we're not using Docker, so this is a no-op
-	// In a real implementation, you would check if Docker is available
+	// Check if Docker is available
+	if _, err := exec.LookPath("docker"); err != nil {
+		tf.t.Skip("Docker is not available")
+	}
+
+	// Check if docker-compose (v1) or docker compose (v2) is available
+	hasDockerCompose := false
+	if _, err := exec.LookPath("docker-compose"); err == nil {
+		hasDockerCompose = true
+	} else {
+		// Try docker compose (v2)
+		cmd := exec.Command("docker", "compose", "version")
+		if err := cmd.Run(); err == nil {
+			hasDockerCompose = true
+		}
+	}
+
+	if !hasDockerCompose {
+		tf.t.Skip("Docker Compose is not available")
+	}
+
+	// Initialize Vault configuration if not already set
+	if tf.vaultAddr == "" {
+		tf.vaultAddr = "http://localhost:8200"
+		tf.vaultToken = "test-root-token"
+	}
+
+	// Start Docker containers if not already started
+	if !tf.dockerStarted {
+		if err := tf.startDocker(); err != nil {
+			tf.t.Fatalf("Failed to start Docker containers: %v", err)
+		}
+		tf.dockerStarted = true
+	}
 }
 
 // RequireCommands skips the test if required commands are not available
@@ -278,4 +320,102 @@ func (tf *TestFramework) ExpectEncryptError() string {
 		return "device validation failed"
 	}
 	return "root privileges"
+}
+
+// startDocker starts the Docker containers using docker-compose
+func (tf *TestFramework) startDocker() error {
+	// Find the directory containing docker-compose.yml
+	composeDir, err := tf.findComposeDir()
+	if err != nil {
+		return fmt.Errorf("failed to find docker-compose.yml: %w", err)
+	}
+
+	// Stop any existing containers first
+	tf.logger.Debug("Stopping any existing Docker containers...")
+	cmd := tf.createComposeCommand("down", "--remove-orphans")
+	cmd.Dir = composeDir
+	_ = cmd.Run() // Ignore errors, containers might not exist
+
+	// Start the containers
+	tf.logger.Debug("Starting Docker containers...")
+	cmd = tf.createComposeCommand("up", "-d")
+	cmd.Dir = composeDir
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to start docker-compose: %w", err)
+	}
+
+	// Wait for Vault to be ready
+	tf.logger.Debug("Waiting for Vault to be ready...")
+	return tf.waitForVault()
+}
+
+// stopDocker stops the Docker containers
+func (tf *TestFramework) stopDocker() {
+	// Find the directory containing docker-compose.yml
+	composeDir, err := tf.findComposeDir()
+	if err != nil {
+		tf.logger.Warnf("Failed to find docker-compose.yml: %v", err)
+		return
+	}
+
+	tf.logger.Debug("Stopping Docker containers...")
+	cmd := tf.createComposeCommand("down", "--remove-orphans")
+	cmd.Dir = composeDir
+	if err := cmd.Run(); err != nil {
+		tf.logger.Warnf("Failed to stop docker-compose: %v", err)
+	}
+}
+
+// createComposeCommand creates the appropriate docker-compose command (v1 or v2)
+func (tf *TestFramework) createComposeCommand(args ...string) *exec.Cmd {
+	// Try docker-compose first (v1)
+	if _, err := exec.LookPath("docker-compose"); err == nil {
+		return exec.Command("docker-compose", args...)
+	}
+
+	// Use docker compose (v2)
+	cmdArgs := append([]string{"compose"}, args...)
+	return exec.Command("docker", cmdArgs...)
+}
+
+// waitForVault waits for Vault to become available
+func (tf *TestFramework) waitForVault() error {
+	maxRetries := 30
+	retryDelay := 2 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		// Try to connect to Vault health endpoint
+		url := tf.vaultAddr + "/v1/sys/health"
+		cmd := exec.Command("curl", "-s", "-f", url)
+		if err := cmd.Run(); err == nil {
+			tf.logger.Debug("Vault is ready!")
+			return nil
+		}
+
+		tf.logger.Debugf("Vault not ready yet, retry %d/%d...", i+1, maxRetries)
+		time.Sleep(retryDelay)
+	}
+
+	return fmt.Errorf("vault did not become ready within %v", time.Duration(maxRetries)*retryDelay)
+}
+
+// findComposeDir finds the directory containing docker-compose.yml
+func (tf *TestFramework) findComposeDir() (string, error) {
+	// Check current directory first
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := os.Stat(filepath.Join(currentDir, "docker-compose.yml")); err == nil {
+		return currentDir, nil
+	}
+
+	// Check test/integration relative to project root
+	integrationDir := filepath.Join(tf.projectRoot, "test", "integration")
+	if _, err := os.Stat(filepath.Join(integrationDir, "docker-compose.yml")); err == nil {
+		return integrationDir, nil
+	}
+
+	return "", fmt.Errorf("docker-compose.yml not found")
 }
