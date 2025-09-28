@@ -542,7 +542,7 @@ func TestTokenManagerSetTokenFromResponse(t *testing.T) {
 			},
 		}
 
-		tm.setTokenFromResponse(secret)
+		_ = tm.setTokenFromResponse(secret)
 
 		assert.Equal(t, "test-token-456", tm.GetToken())
 		assert.Equal(t, time.Duration(3600)*time.Second, tm.GetTTL())
@@ -553,7 +553,7 @@ func TestTokenManagerSetTokenFromResponse(t *testing.T) {
 		secret := &api.Secret{}
 		tm.Clear()
 
-		tm.setTokenFromResponse(secret)
+		_ = tm.setTokenFromResponse(secret)
 
 		assert.Empty(t, tm.GetToken())
 		assert.False(t, tm.IsValid())

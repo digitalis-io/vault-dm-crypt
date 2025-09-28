@@ -239,18 +239,18 @@ output = "stderr"
 
 func TestLoadConfigWithEnvironmentVariables(t *testing.T) {
 	// Set environment variables
-	os.Setenv("VAULT_ADDR", "http://env-vault:8200")
-	os.Setenv("VAULT_APPROLE", "env-approle")
-	os.Setenv("VAULT_SECRET_ID", "env-secret")
-	os.Setenv("VAULT_DM_CRYPT_VAULT_BACKEND", "env-backend")
-	os.Setenv("VAULT_DM_CRYPT_LOG_LEVEL", "warn")
+	_ = os.Setenv("VAULT_ADDR", "http://env-vault:8200")
+	_ = os.Setenv("VAULT_APPROLE", "env-approle")
+	_ = os.Setenv("VAULT_SECRET_ID", "env-secret")
+	_ = os.Setenv("VAULT_DM_CRYPT_VAULT_BACKEND", "env-backend")
+	_ = os.Setenv("VAULT_DM_CRYPT_LOG_LEVEL", "warn")
 
 	defer func() {
-		os.Unsetenv("VAULT_ADDR")
-		os.Unsetenv("VAULT_APPROLE")
-		os.Unsetenv("VAULT_SECRET_ID")
-		os.Unsetenv("VAULT_DM_CRYPT_VAULT_BACKEND")
-		os.Unsetenv("VAULT_DM_CRYPT_LOG_LEVEL")
+		_ = os.Unsetenv("VAULT_ADDR")
+		_ = os.Unsetenv("VAULT_APPROLE")
+		_ = os.Unsetenv("VAULT_SECRET_ID")
+		_ = os.Unsetenv("VAULT_DM_CRYPT_VAULT_BACKEND")
+		_ = os.Unsetenv("VAULT_DM_CRYPT_LOG_LEVEL")
 	}()
 
 	// Load config (will use defaults and environment)

@@ -141,7 +141,7 @@ func TestVaultComprehensive(t *testing.T) {
 			"VAULT_ADDR="+vaultAddr,
 			"VAULT_TOKEN=test-root-token",
 		)
-		cmd.Run() // Ignore errors during cleanup
+		_ = cmd.Run() // Ignore errors during cleanup
 	})
 
 	t.Run("policy_and_permissions", func(t *testing.T) {
@@ -424,7 +424,7 @@ func TestVaultSecurityFeatures(t *testing.T) {
 			"VAULT_ADDR="+vaultAddr,
 			"VAULT_TOKEN=test-root-token",
 		)
-		cmd.Run()
+		_ = cmd.Run()
 
 		t.Logf("Secret encryption/decryption verified")
 	})

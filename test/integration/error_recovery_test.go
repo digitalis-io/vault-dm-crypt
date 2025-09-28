@@ -38,7 +38,7 @@ func TestErrorRecoveryScenarios(t *testing.T) {
 				configFunc: func(tempDir string) string {
 					content := "[vault\ninvalid toml syntax here"
 					path := filepath.Join(tempDir, "invalid-syntax.toml")
-					os.WriteFile(path, []byte(content), 0644)
+					_ = os.WriteFile(path, []byte(content), 0644)
 					return path
 				},
 				expectedErr: "failed to load configuration",
@@ -54,7 +54,7 @@ backend = "secret"
 level = "info"
 `
 					path := filepath.Join(tempDir, "missing-fields.toml")
-					os.WriteFile(path, []byte(content), 0644)
+					_ = os.WriteFile(path, []byte(content), 0644)
 					return path
 				},
 				expectedErr: "failed to load configuration",
@@ -72,7 +72,7 @@ secret_id = "%s"
 level = "info"
 `, roleID, secretID)
 					path := filepath.Join(tempDir, "invalid-url.toml")
-					os.WriteFile(path, []byte(content), 0644)
+					_ = os.WriteFile(path, []byte(content), 0644)
 					return path
 				},
 				expectedErr: framework.ExpectDecryptError(), // Will fail with root privileges before auth
@@ -92,7 +92,7 @@ retry_max = -5
 level = "info"
 `, vaultAddr, roleID, secretID)
 					path := filepath.Join(tempDir, "invalid-timeouts.toml")
-					os.WriteFile(path, []byte(content), 0644)
+					_ = os.WriteFile(path, []byte(content), 0644)
 					return path
 				},
 				expectedErr: "", // Should handle gracefully or use defaults
@@ -229,8 +229,8 @@ level = "info"
 		assert.Empty(t, stdout)
 
 		// Cleanup
-		os.Chmod(restrictedConfig, 0644)
-		os.Remove(restrictedConfig)
+		_ = os.Chmod(restrictedConfig, 0644)
+		_ = os.Remove(restrictedConfig)
 	})
 
 	t.Run("resource_exhaustion_simulation", func(t *testing.T) {
@@ -479,12 +479,12 @@ func TestEdgeCaseHandling(t *testing.T) {
 		for envVar, envValue := range maliciousEnvVars {
 			t.Run("inject_"+strings.ToLower(envVar), func(t *testing.T) {
 				originalValue := os.Getenv(envVar)
-				os.Setenv(envVar, envValue)
+				_ = os.Setenv(envVar, envValue)
 				defer func() {
 					if originalValue != "" {
-						os.Setenv(envVar, originalValue)
+						_ = os.Setenv(envVar, originalValue)
 					} else {
-						os.Unsetenv(envVar)
+						_ = os.Unsetenv(envVar)
 					}
 				}()
 
@@ -594,9 +594,9 @@ func TestEdgeCaseHandling(t *testing.T) {
 
 				// Send signal
 				if signal == "SIGTERM" {
-					cmd.Process.Signal(os.Interrupt)
+					_ = cmd.Process.Signal(os.Interrupt)
 				} else {
-					cmd.Process.Signal(os.Interrupt)
+					_ = cmd.Process.Signal(os.Interrupt)
 				}
 
 				// Wait for process to exit

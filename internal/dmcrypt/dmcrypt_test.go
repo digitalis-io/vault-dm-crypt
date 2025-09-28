@@ -142,8 +142,8 @@ func TestValidateDevice(t *testing.T) {
 		// Create a temporary file to simulate a device
 		tmpFile, err := os.CreateTemp("", "test-device-*")
 		require.NoError(t, err)
-		defer os.Remove(tmpFile.Name())
-		tmpFile.Close()
+		defer func() { _ = os.Remove(tmpFile.Name()) }()
+		_ = tmpFile.Close()
 
 		err = manager.ValidateDevice(tmpFile.Name())
 		// This will fail because it's not actually a device, but the file exists

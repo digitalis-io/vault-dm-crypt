@@ -302,12 +302,12 @@ func TestVaultSecretLifecycle(t *testing.T) {
 
 		// Set hostname for metadata testing
 		originalHostname := os.Getenv("HOSTNAME")
-		os.Setenv("HOSTNAME", "test-integration-host")
+		_ = os.Setenv("HOSTNAME", "test-integration-host")
 		defer func() {
 			if originalHostname != "" {
-				os.Setenv("HOSTNAME", originalHostname)
+				_ = os.Setenv("HOSTNAME", originalHostname)
 			} else {
-				os.Unsetenv("HOSTNAME")
+				_ = os.Unsetenv("HOSTNAME")
 			}
 		}()
 

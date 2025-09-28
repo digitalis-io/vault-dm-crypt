@@ -316,8 +316,8 @@ func TestSystemdEnvironment(t *testing.T) {
 
 		// Set systemd environment variables
 		for key, value := range systemdEnvVars {
-			os.Setenv(key, value)
-			defer os.Unsetenv(key)
+			_ = os.Setenv(key, value)
+			defer func() { _ = os.Unsetenv(key) }()
 		}
 
 		// Test that the application handles systemd environment correctly
