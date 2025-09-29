@@ -52,7 +52,7 @@ using dm-crypt/LUKS with encryption keys stored in HashiCorp Vault.
 
 ```bash
 # Clone the repository
-git clone https://github.com/axonops/vault-dm-crypt.git
+git clone https://github.com/digitalisio/vault-dm-crypt.git
 cd vault-dm-crypt
 
 # Build the binary

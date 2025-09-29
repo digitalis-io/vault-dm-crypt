@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"axonops/vault-dm-crypt/internal/config"
+	"digitalisio/vault-dm-crypt/internal/config"
 )
 
 func TestNewClient(t *testing.T) {

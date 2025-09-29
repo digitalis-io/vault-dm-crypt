@@ -33,7 +33,7 @@ case "$1" in
         echo "   sudo systemctl start vault-dm-crypt-refresh.timer"
         echo ""
         echo "For more information, see the documentation at:"
-        echo "https://github.com/axonops/vault-dm-crypt"
+        echo "https://github.com/digitalis-io/vault-dm-crypt"
         ;;
 esac
 

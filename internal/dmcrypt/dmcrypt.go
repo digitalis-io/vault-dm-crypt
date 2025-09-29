@@ -10,7 +10,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"axonops/vault-dm-crypt/internal/errors"
+	"digitalisio/vault-dm-crypt/internal/errors"
 )
 
 // Manager handles dm-crypt operations

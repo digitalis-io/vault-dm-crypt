@@ -1,4 +1,4 @@
-module axonops/vault-dm-crypt
+module digitalisio/vault-dm-crypt
 
 go 1.25
 

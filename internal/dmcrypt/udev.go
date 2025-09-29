@@ -6,7 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"axonops/vault-dm-crypt/internal/errors"
+	"digitalisio/vault-dm-crypt/internal/errors"
 )
 
 // UdevManager handles udev operations for device discovery and management

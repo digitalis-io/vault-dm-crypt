@@ -1,6 +1,6 @@
 [Unit]
 Description=Vault DM-Crypt Authentication Refresh
-Documentation=https://github.com/axonops/vault-dm-crypt
+Documentation=https://github.com/digitalis-io/vault-dm-crypt
 After=network-online.target
 Wants=network-online.target
 DefaultDependencies=false

@@ -1,12 +1,12 @@
 Source: vault-dm-crypt
 Section: admin
 Priority: optional
-Maintainer: AxonOps <support@axonops.com>
+Maintainer: Digitalis <support@digitalis.io>
 Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.22~)
 Standards-Version: 4.6.2
-Homepage: https://github.com/axonops/vault-dm-crypt
-Vcs-Git: https://github.com/axonops/vault-dm-crypt.git
-Vcs-Browser: https://github.com/axonops/vault-dm-crypt
+Homepage: https://github.com/digitalis-io/vault-dm-crypt
+Vcs-Git: https://github.com/digitalis-io/vault-dm-crypt.git
+Vcs-Browser: https://github.com/digitalis-io/vault-dm-crypt
 
 Package: vault-dm-crypt
 Architecture: any

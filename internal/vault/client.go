@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/vault/api"
 	"github.com/sirupsen/logrus"
 
-	"axonops/vault-dm-crypt/internal/config"
-	"axonops/vault-dm-crypt/internal/errors"
+	"digitalisio/vault-dm-crypt/internal/config"
+	"digitalisio/vault-dm-crypt/internal/errors"
 )
 
 // Client wraps the Vault API client with additional functionality

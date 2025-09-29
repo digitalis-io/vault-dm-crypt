@@ -151,6 +151,6 @@ make deps
 ## Key Development Notes
 
 - This project uses Go 1.25 as specified in go.mod
-- Module path: `axonops/vault-dm-crypt`
+- Module path: `digitalisio/vault-dm-crypt`
 - When implementing Vault integration, use the official HashiCorp Vault Go client library
 - For dm-crypt operations root access will be required, so the whole project should be run as root

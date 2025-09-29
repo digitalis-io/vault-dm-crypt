@@ -149,7 +149,7 @@ jobs:
           fi
 
           # Update debian changelog with the correct version
-          DEBEMAIL="support@axonops.com" DEBFULLNAME="AxonOps" \
+          DEBEMAIL="support@digitalis.io" DEBFULLNAME="Digitalis" \
             dch --newversion "${VERSION}-1" --distribution unstable \
             --force-distribution "Build from git version ${VERSION}"
 

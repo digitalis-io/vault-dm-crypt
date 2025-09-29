@@ -1,6 +1,6 @@
 [Unit]
 Description=Vault DM-Crypt Authentication Refresh Timer
-Documentation=https://github.com/axonops/vault-dm-crypt
+Documentation=https://github.com/digitalis-io/vault-dm-crypt
 Requires=vault-dm-crypt-refresh.service
 
 [Timer]

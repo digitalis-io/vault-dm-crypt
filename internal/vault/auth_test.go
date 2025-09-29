@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"axonops/vault-dm-crypt/internal/config"
+	"digitalisio/vault-dm-crypt/internal/config"
 )
 
 // MockVaultClient is a mock implementation for testing
