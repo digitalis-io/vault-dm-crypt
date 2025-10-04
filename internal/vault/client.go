@@ -123,14 +123,25 @@ func (c *Client) WriteSecret(ctx context.Context, path string, data map[string]i
 		return err
 	}
 
-	// For KV v2, we need to wrap the data
-	secretData := map[string]interface{}{
-		"data": data,
+	var fullPath string
+	var secretData map[string]interface{}
+
+	if c.config.KVVersion == "2" {
+		// KV v2: wrap data and use /data/ path
+		secretData = map[string]interface{}{
+			"data": data,
+		}
+		fullPath = fmt.Sprintf("%s/data/%s", c.config.Backend, path)
+	} else {
+		// KV v1: write data directly
+		secretData = data
+		fullPath = fmt.Sprintf("%s/%s", c.config.Backend, path)
 	}
 
-	fullPath := fmt.Sprintf("%s/data/%s", c.config.Backend, path)
-
-	c.logger.WithField("path", fullPath).Debug("Writing secret to Vault")
+	c.logger.WithFields(logrus.Fields{
+		"path":       fullPath,
+		"kv_version": c.config.KVVersion,
+	}).Debug("Writing secret to Vault")
 
 	_, err := c.client.Logical().WriteWithContext(ctx, fullPath, secretData)
 	if err != nil {
@@ -147,9 +158,19 @@ func (c *Client) ReadSecret(ctx context.Context, path string) (map[string]interf
 		return nil, err
 	}
 
-	fullPath := fmt.Sprintf("%s/data/%s", c.config.Backend, path)
+	var fullPath string
+	if c.config.KVVersion == "2" {
+		// KV v2: use /data/ path
+		fullPath = fmt.Sprintf("%s/data/%s", c.config.Backend, path)
+	} else {
+		// KV v1: direct path
+		fullPath = fmt.Sprintf("%s/%s", c.config.Backend, path)
+	}
 
-	c.logger.WithField("path", fullPath).Debug("Reading secret from Vault")
+	c.logger.WithFields(logrus.Fields{
+		"path":       fullPath,
+		"kv_version": c.config.KVVersion,
+	}).Debug("Reading secret from Vault")
 
 	resp, err := c.client.Logical().ReadWithContext(ctx, fullPath)
 	if err != nil {
@@ -160,14 +181,21 @@ func (c *Client) ReadSecret(ctx context.Context, path string) (map[string]interf
 		return nil, errors.NewVaultReadError(fullPath, fmt.Errorf("secret not found"))
 	}
 
-	// For KV v2, the actual data is nested under "data"
 	if resp.Data == nil {
 		return nil, errors.NewVaultReadError(fullPath, fmt.Errorf("no data in secret"))
 	}
 
-	data, ok := resp.Data["data"].(map[string]interface{})
-	if !ok {
-		return nil, errors.NewVaultReadError(fullPath, fmt.Errorf("invalid data format in secret"))
+	var data map[string]interface{}
+	if c.config.KVVersion == "2" {
+		// KV v2: data is nested under "data" field
+		var ok bool
+		data, ok = resp.Data["data"].(map[string]interface{})
+		if !ok {
+			return nil, errors.NewVaultReadError(fullPath, fmt.Errorf("invalid data format in secret"))
+		}
+	} else {
+		// KV v1: data is directly in resp.Data
+		data = resp.Data
 	}
 
 	c.logger.WithField("path", fullPath).Debug("Successfully read secret from Vault")

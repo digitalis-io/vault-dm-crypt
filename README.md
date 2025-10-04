@@ -127,6 +127,7 @@ Configuration file is located at `/etc/vault-dm-crypt/config.toml`:
 [vault]
 url = "https://vault.example.com:8200"
 backend = "secret"
+kv_version = "1"  # KV store version: "1" or "2" (default: "1" for vaultlocker compatibility)
 vault_token = "your-vault-token"
 ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
 timeout = 30
@@ -145,6 +146,7 @@ output = "/var/log/vault-dm-crypt.log"
 [vault]
 url = "https://vault.example.com:8200"
 backend = "secret"
+kv_version = "1"  # KV store version: "1" or "2" (default: "1" for vaultlocker compatibility)
 approle = "your-approle-id"
 secret_id = "your-secret-id"
 approle_name = "vault-dm-crypt"  # Required for secret ID refresh
@@ -174,16 +176,35 @@ The token needs permissions to:
 - Renew itself (if the token is renewable)
 - Look up its own token information
 
-**Policy Example:**
+**Policy Example (KV v2):**
 
 ```hcl
-# Policy for vault-dm-crypt with token authentication
+# Policy for vault-dm-crypt with token authentication (KV v2)
 path "secret/data/vaultlocker/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
 path "secret/metadata/vaultlocker/*" {
   capabilities = ["list", "read", "delete"]
+}
+
+# Allow token to renew itself
+path "auth/token/renew-self" {
+  capabilities = ["update"]
+}
+
+# Allow token to look up its own properties
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}
+```
+
+**Policy Example (KV v1):**
+
+```hcl
+# Policy for vault-dm-crypt with token authentication (KV v1)
+path "secret/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
 }
 
 # Allow token to renew itself
@@ -224,16 +245,40 @@ The AppRole needs permissions to:
 - Generate new secret IDs for itself (for automatic refresh)
 - Look up secret ID information
 
-**Policy Example:**
+**Policy Example (KV v2):**
 
 ```hcl
-# Policy for vault-dm-crypt with AppRole authentication
+# Policy for vault-dm-crypt with AppRole authentication (KV v2)
 path "secret/data/vaultlocker/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
 path "secret/metadata/vaultlocker/*" {
   capabilities = ["list", "read", "delete"]
+}
+
+# Allow AppRole to generate new secret IDs for itself
+path "auth/approle/role/vault-dm-crypt/secret-id" {
+  capabilities = ["update"]
+}
+
+# Allow AppRole to look up secret ID information
+path "auth/approle/role/vault-dm-crypt/secret-id/lookup" {
+  capabilities = ["update"]
+}
+
+# Allow token to look up its own properties
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}
+```
+
+**Policy Example (KV v1):**
+
+```hcl
+# Policy for vault-dm-crypt with AppRole authentication (KV v1)
+path "secret/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
 }
 
 # Allow AppRole to generate new secret IDs for itself
@@ -287,20 +332,32 @@ vault write -field=secret_id auth/approle/role/vault-dm-crypt/secret-id
 
 ### Setting up the Vault KV Backend
 
-vault-dm-crypt expects a KV v2 secrets engine mounted at the path specified in `backend` (default: `secret`):
+vault-dm-crypt supports both KV v1 and KV v2 secrets engines. The version is controlled by the `kv_version` config option:
+
+- **KV v1** (default): For backwards compatibility with vaultlocker. Use `kv_version = "1"` or omit (defaults to "1")
+- **KV v2**: For versioned secrets with metadata. Use `kv_version = "2"`
+
+**For KV v1 (vaultlocker compatibility):**
 
 ```bash
-# Enable KV v2 secrets engine if not already enabled
+# Enable KV v1 secrets engine
+vault secrets enable -path=secret kv
+
+# Verify it's enabled
+vault secrets list
+```
+
+**For KV v2 (recommended for new installations):**
+
+```bash
+# Enable KV v2 secrets engine
 vault secrets enable -path=secret kv-v2
 
 # Verify it's enabled
 vault secrets list
-
-# Example output should show:
-# Path          Type         ...
-# ----          ----         ...
-# secret/       kv           ...
 ```
+
+**Note**: Make sure to set `kv_version` in your config.toml to match the actual KV version of your secrets engine.
 
 ### Quick Setup Script
 
@@ -312,14 +369,12 @@ vault secrets list
 vault auth enable approle 2>/dev/null || true
 vault secrets enable -path=secret kv-v2 2>/dev/null || true
 
-# Create policy
+# Create policy (adjust paths based on your KV version)
+# For KV v2, use: secret/data/vaultlocker/* and secret/metadata/vaultlocker/*
+# For KV v1, use: secret/vaultlocker/*
 vault policy write vault-dm-crypt - <<EOF
-path "secret/data/vaultlocker/*" {
+path "secret/vaultlocker/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
-}
-
-path "secret/metadata/vaultlocker/*" {
-  capabilities = ["list", "read", "delete"]
 }
 
 path "auth/approle/role/vault-dm-crypt/secret-id" {
