@@ -128,6 +128,7 @@ Configuration file is located at `/etc/vault-dm-crypt/config.toml`:
 url = "https://vault.example.com:8200"
 backend = "secret"
 kv_version = "1"  # KV store version: "1" or "2" (default: "1" for vaultlocker compatibility)
+vault_path = "vault-dm-crypt/%h"  # Base path for storing keys (default: "vault-dm-crypt/%h", %h = short hostname)
 vault_token = "your-vault-token"
 ca_bundle = "/etc/ssl/certs/ca-certificates.crt"
 timeout = 30
@@ -147,6 +148,7 @@ output = "/var/log/vault-dm-crypt.log"
 url = "https://vault.example.com:8200"
 backend = "secret"
 kv_version = "1"  # KV store version: "1" or "2" (default: "1" for vaultlocker compatibility)
+vault_path = "vault-dm-crypt/%h"  # Base path for storing keys (default: "vault-dm-crypt/%h", %h = short hostname)
 approle = "your-approle-id"
 secret_id = "your-secret-id"
 approle_name = "vault-dm-crypt"  # Required for secret ID refresh
@@ -161,7 +163,10 @@ format = "json"
 output = "/var/log/vault-dm-crypt.log"
 ```
 
-**Note**: Use either `vault_token` OR `approle`/`secret_id`, not both. The two authentication methods are mutually exclusive.
+**Notes**:
+- Use either `vault_token` OR `approle`/`secret_id`, not both. The two authentication methods are mutually exclusive.
+- The `vault_path` supports the `%h` placeholder which is replaced with the short hostname of the machine. This allows organizing keys by hostname.
+- For vaultlocker compatibility, set `vault_path = "vaultlocker"` (without hostname placeholder)
 
 ## Vault Configuration
 
@@ -180,13 +185,19 @@ The token needs permissions to:
 
 ```hcl
 # Policy for vault-dm-crypt with token authentication (KV v2)
-path "secret/data/vaultlocker/*" {
+# Adjust the path based on your vault_path config setting
+# This example uses the default "vault-dm-crypt/*" with wildcard for all hosts
+path "secret/data/vault-dm-crypt/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path "secret/metadata/vaultlocker/*" {
+path "secret/metadata/vault-dm-crypt/*" {
   capabilities = ["list", "read", "delete"]
 }
+
+# For vaultlocker compatibility, use:
+# path "secret/data/vaultlocker/*" { ... }
+# path "secret/metadata/vaultlocker/*" { ... }
 
 # Allow token to renew itself
 path "auth/token/renew-self" {
@@ -203,9 +214,14 @@ path "auth/token/lookup-self" {
 
 ```hcl
 # Policy for vault-dm-crypt with token authentication (KV v1)
-path "secret/vaultlocker/*" {
+# Adjust the path based on your vault_path config setting
+# This example uses the default "vault-dm-crypt/*" with wildcard for all hosts
+path "secret/vault-dm-crypt/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
+
+# For vaultlocker compatibility, use:
+# path "secret/vaultlocker/*" { ... }
 
 # Allow token to renew itself
 path "auth/token/renew-self" {
@@ -249,13 +265,19 @@ The AppRole needs permissions to:
 
 ```hcl
 # Policy for vault-dm-crypt with AppRole authentication (KV v2)
-path "secret/data/vaultlocker/*" {
+# Adjust the path based on your vault_path config setting
+# This example uses the default "vault-dm-crypt/*" with wildcard for all hosts
+path "secret/data/vault-dm-crypt/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 
-path "secret/metadata/vaultlocker/*" {
+path "secret/metadata/vault-dm-crypt/*" {
   capabilities = ["list", "read", "delete"]
 }
+
+# For vaultlocker compatibility, use:
+# path "secret/data/vaultlocker/*" { ... }
+# path "secret/metadata/vaultlocker/*" { ... }
 
 # Allow AppRole to generate new secret IDs for itself
 path "auth/approle/role/vault-dm-crypt/secret-id" {
@@ -277,9 +299,14 @@ path "auth/token/lookup-self" {
 
 ```hcl
 # Policy for vault-dm-crypt with AppRole authentication (KV v1)
-path "secret/vaultlocker/*" {
+# Adjust the path based on your vault_path config setting
+# This example uses the default "vault-dm-crypt/*" with wildcard for all hosts
+path "secret/vault-dm-crypt/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
+
+# For vaultlocker compatibility, use:
+# path "secret/vaultlocker/*" { ... }
 
 # Allow AppRole to generate new secret IDs for itself
 path "auth/approle/role/vault-dm-crypt/secret-id" {
@@ -369,11 +396,12 @@ vault secrets list
 vault auth enable approle 2>/dev/null || true
 vault secrets enable -path=secret kv-v2 2>/dev/null || true
 
-# Create policy (adjust paths based on your KV version)
-# For KV v2, use: secret/data/vaultlocker/* and secret/metadata/vaultlocker/*
-# For KV v1, use: secret/vaultlocker/*
+# Create policy (adjust paths based on your KV version and vault_path setting)
+# For KV v2, use: secret/data/vault-dm-crypt/* and secret/metadata/vault-dm-crypt/*
+# For KV v1, use: secret/vault-dm-crypt/*
+# For vaultlocker compatibility: secret/vaultlocker/* (KV v1) or secret/data/vaultlocker/* (KV v2)
 vault policy write vault-dm-crypt - <<EOF
-path "secret/vaultlocker/*" {
+path "secret/vault-dm-crypt/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
 

@@ -23,6 +23,7 @@ type VaultConfig struct {
 	URL            string `mapstructure:"url"`
 	Backend        string `mapstructure:"backend"`
 	KVVersion      string `mapstructure:"kv_version"`   // KV store version: "1" or "2" (default: "1" for vaultlocker compatibility)
+	VaultPath      string `mapstructure:"vault_path"`   // Base path for storing keys (supports %h for hostname, default: "vault-dm-crypt/%h")
 	AppRole        string `mapstructure:"approle"`      // The role_id (UUID)
 	AppRoleName    string `mapstructure:"approle_name"` // Optional: The role name for generating new secret IDs
 	SecretID       string `mapstructure:"secret_id"`
@@ -41,6 +42,26 @@ func (v VaultConfig) RetryDelay() time.Duration {
 	return time.Duration(v.RetryDelaySecs) * time.Second
 }
 
+// ExpandedVaultPath returns the vault path with placeholders expanded
+// Supports %h for short hostname
+func (v VaultConfig) ExpandedVaultPath() (string, error) {
+	path := v.VaultPath
+
+	// Replace %h with short hostname
+	if strings.Contains(path, "%h") {
+		hostname, err := os.Hostname()
+		if err != nil {
+			return "", errors.Wrap(err, "failed to get hostname for vault path expansion")
+		}
+
+		// Use only the short hostname (before first dot)
+		shortHostname := strings.Split(hostname, ".")[0]
+		path = strings.ReplaceAll(path, "%h", shortHostname)
+	}
+
+	return path, nil
+}
+
 // LoggingConfig contains logging configuration
 type LoggingConfig struct {
 	Level  string `mapstructure:"level"`
@@ -54,7 +75,8 @@ func DefaultConfig() *Config {
 		Vault: VaultConfig{
 			URL:            "http://127.0.0.1:8200",
 			Backend:        "secret",
-			KVVersion:      "1", // Default to v1 for vaultlocker compatibility
+			KVVersion:      "1",                 // Default to v1 for vaultlocker compatibility
+			VaultPath:      "vault-dm-crypt/%h", // Default path with hostname placeholder
 			TimeoutSecs:    30,
 			RetryMax:       3,
 			RetryDelaySecs: 5,
@@ -147,6 +169,7 @@ func setDefaults(v *viper.Viper, config *Config) {
 	v.SetDefault("vault.url", config.Vault.URL)
 	v.SetDefault("vault.backend", config.Vault.Backend)
 	v.SetDefault("vault.kv_version", config.Vault.KVVersion)
+	v.SetDefault("vault.vault_path", config.Vault.VaultPath)
 	v.SetDefault("vault.timeout", config.Vault.TimeoutSecs)
 	v.SetDefault("vault.retry_max", config.Vault.RetryMax)
 	v.SetDefault("vault.retry_delay", config.Vault.RetryDelaySecs)
@@ -269,6 +292,16 @@ func (c *Config) Validate() error {
 	// Validate KV version
 	if c.Vault.KVVersion != "1" && c.Vault.KVVersion != "2" {
 		return errors.NewConfigError("vault.kv_version", fmt.Sprintf("kv_version must be '1' or '2', got '%s'", c.Vault.KVVersion), nil)
+	}
+
+	// Validate vault path
+	if c.Vault.VaultPath == "" {
+		return errors.NewConfigError("vault.vault_path", "vault_path cannot be empty", nil)
+	}
+
+	// Test that vault path can be expanded
+	if _, err := c.Vault.ExpandedVaultPath(); err != nil {
+		return errors.NewConfigError("vault.vault_path", "failed to expand vault_path", err)
 	}
 
 	// Check authentication method: either token or approle, but not both

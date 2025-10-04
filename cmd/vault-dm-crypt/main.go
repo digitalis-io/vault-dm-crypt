@@ -115,7 +115,7 @@ var encryptCmd = &cobra.Command{
 
 This command will:
 1. Generate a random encryption key
-2. Store the key in Vault at secret/vaultlocker/<uuid>
+2. Store the key in Vault at the configured vault_path
 3. Format the device with LUKS encryption
 4. Open the encrypted device
 5. Enable systemd service for auto-mount on boot`,
@@ -180,7 +180,12 @@ This command will:
 				secretData["hostname"] = hostname
 			}
 
-			vaultPath := fmt.Sprintf("vaultlocker/%s", uuidStr)
+			// Get expanded vault path with placeholders replaced
+			basePath, err := cfg.Vault.ExpandedVaultPath()
+			if err != nil {
+				return err
+			}
+			vaultPath := fmt.Sprintf("%s/%s", basePath, uuidStr)
 			return vaultClient.WriteSecret(ctx, vaultPath, secretData)
 		})
 
@@ -233,10 +238,16 @@ This command will:
 			"mapped_device": mappedDevice,
 		}).Info("Device encryption completed successfully")
 
+		// Get expanded vault path for display
+		basePath, err := cfg.Vault.ExpandedVaultPath()
+		if err != nil {
+			return err
+		}
+
 		fmt.Printf("Device encrypted successfully:\n")
 		fmt.Printf("  UUID: %s\n", uuidStr)
 		fmt.Printf("  Mapped device: %s\n", mappedDevice)
-		fmt.Printf("  Vault path: secret/vaultlocker/%s\n", uuidStr)
+		fmt.Printf("  Vault path: %s/%s/%s\n", cfg.Vault.Backend, basePath, uuidStr)
 
 		return nil
 	},
@@ -276,7 +287,12 @@ This command will:
 		logger.Debug("Retrieving encryption key from Vault")
 		var key string
 		err := vaultClient.WithRetry(ctx, func() error {
-			vaultPath := fmt.Sprintf("vaultlocker/%s", uuid)
+			// Get expanded vault path with placeholders replaced
+			basePath, err := cfg.Vault.ExpandedVaultPath()
+			if err != nil {
+				return err
+			}
+			vaultPath := fmt.Sprintf("%s/%s", basePath, uuid)
 			secretData, err := vaultClient.ReadSecret(ctx, vaultPath)
 			if err != nil {
 				return err

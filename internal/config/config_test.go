@@ -37,6 +37,7 @@ func TestConfigValidation(t *testing.T) {
 					URL:            "http://vault:8200",
 					Backend:        "secret",
 					KVVersion:      "1",
+					VaultPath:      "vault-dm-crypt/%h",
 					AppRole:        "test-role",
 					SecretID:       "test-secret",
 					TimeoutSecs:    30,
@@ -56,6 +57,7 @@ func TestConfigValidation(t *testing.T) {
 			config: &Config{
 				Vault: VaultConfig{
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					AppRole:     "test-role",
 					SecretID:    "test-secret",
@@ -95,6 +97,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					SecretID:    "test-secret",
 					TimeoutSecs: 30,
@@ -114,6 +117,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					AppRole:     "test-role",
 					TimeoutSecs: 30,
@@ -133,6 +137,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					AppRole:     "test-role",
 					SecretID:    "test-secret",
@@ -153,6 +158,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					AppRole:     "test-role",
 					SecretID:    "test-secret",
@@ -173,6 +179,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					AppRole:     "test-role",
 					SecretID:    "test-secret",
@@ -194,6 +201,7 @@ func TestConfigValidation(t *testing.T) {
 					URL:            "http://vault:8200",
 					Backend:        "secret",
 					KVVersion:      "1",
+					VaultPath:      "vaultlocker",
 					VaultToken:     "test-token",
 					TimeoutSecs:    30,
 					RetryMax:       3,
@@ -213,6 +221,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					VaultToken:  "test-token",
 					AppRole:     "test-role",
@@ -234,6 +243,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					TimeoutSecs: 30,
 				},
@@ -252,6 +262,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					AppRole:     "test-role",
 					TimeoutSecs: 30,
@@ -271,6 +282,7 @@ func TestConfigValidation(t *testing.T) {
 				Vault: VaultConfig{
 					URL:         "http://vault:8200",
 					Backend:     "secret",
+					VaultPath:   "vaultlocker",
 					KVVersion:   "1",
 					SecretID:    "test-secret",
 					TimeoutSecs: 30,
@@ -400,6 +412,7 @@ func TestConfigWithInvalidCABundle(t *testing.T) {
 		Vault: VaultConfig{
 			URL:         "http://vault:8200",
 			Backend:     "secret",
+			VaultPath:   "vaultlocker",
 			KVVersion:   "1",
 			AppRole:     "test-role",
 			SecretID:    "test-secret",
@@ -429,6 +442,7 @@ func TestConfigWithValidCABundle(t *testing.T) {
 		Vault: VaultConfig{
 			URL:         "http://vault:8200",
 			Backend:     "secret",
+			VaultPath:   "vaultlocker",
 			KVVersion:   "1",
 			AppRole:     "test-role",
 			SecretID:    "test-secret",
