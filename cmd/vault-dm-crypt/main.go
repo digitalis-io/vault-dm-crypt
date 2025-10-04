@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -385,31 +386,37 @@ var refreshAuthCmd = &cobra.Command{
 
 For AppRole authentication, this command will:
 1. Check current token and secret ID expiry status
-2. Automatically refresh the secret ID if it expires within 30 minutes
+2. Automatically refresh the secret ID if it has less than 25% of its lifetime remaining
 3. Update the config file with the new secret ID
 
 For Token authentication, this command will:
 1. Check current token expiry status
-2. Attempt to renew the token if it expires within 30 minutes
+2. Attempt to renew the token if it has less than 25% of its lifetime remaining
 3. Note that token renewal may fail if the token is not renewable
 
 Use --status to only view authentication status without making changes.
 Use --force to refresh credentials regardless of expiry.
-Use --no-update-config to skip updating the configuration file (AppRole only).`,
+Use --no-update-config to skip updating the configuration file (AppRole only).
+Use --threshold-percentage to override the default 25% threshold (0.0-1.0).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Silence usage for runtime errors (not argument errors)
 		cmd.SilenceUsage = true
 
-		// Get the expiry threshold from flags or environment
-		thresholdMinutes, _ := cmd.Flags().GetFloat64("threshold-minutes")
+		// Get the refresh threshold percentage from flags or environment
+		thresholdPercentage, _ := cmd.Flags().GetFloat64("threshold-percentage")
 
 		// Check environment variable if not set via flag
-		if !cmd.Flags().Changed("threshold-minutes") {
-			if envThreshold := os.Getenv("VAULT_DM_CRYPT_REFRESH_THRESHOLD_MINUTES"); envThreshold != "" {
-				if parsed, err := time.ParseDuration(envThreshold + "m"); err == nil {
-					thresholdMinutes = parsed.Minutes()
+		if !cmd.Flags().Changed("threshold-percentage") {
+			if envThreshold := os.Getenv("VAULT_DM_CRYPT_REFRESH_THRESHOLD_PERCENTAGE"); envThreshold != "" {
+				if parsed, err := strconv.ParseFloat(envThreshold, 64); err == nil {
+					thresholdPercentage = parsed
 				}
 			}
+		}
+
+		// Validate percentage is between 0 and 1
+		if thresholdPercentage < 0.0 || thresholdPercentage > 1.0 {
+			return fmt.Errorf("threshold-percentage must be between 0.0 and 1.0, got %v", thresholdPercentage)
 		}
 
 		forceRefresh, _ := cmd.Flags().GetBool("force")
@@ -418,8 +425,6 @@ Use --no-update-config to skip updating the configuration file (AppRole only).`,
 
 		// Default behavior: update config unless --no-update-config is specified
 		updateConfig := !noUpdateConfig
-
-		threshold := time.Duration(thresholdMinutes * float64(time.Minute))
 
 		// Check authentication method
 		isTokenAuth := cfg.Vault.VaultToken != ""
@@ -431,10 +436,10 @@ Use --no-update-config to skip updating the configuration file (AppRole only).`,
 		}
 
 		logger.WithFields(logrus.Fields{
-			"threshold_minutes": thresholdMinutes,
-			"force_refresh":     forceRefresh,
-			"update_config":     updateConfig,
-			"status_only":       statusOnly,
+			"threshold_percentage": thresholdPercentage * 100,
+			"force_refresh":        forceRefresh,
+			"update_config":        updateConfig,
+			"status_only":          statusOnly,
 		}).Info("Checking authentication status")
 
 		// Create context with timeout
@@ -495,11 +500,11 @@ Use --no-update-config to skip updating the configuration file (AppRole only).`,
 						fmt.Printf("Secret ID expires at: %s\n", expirationTime)
 
 						// Check if secret ID is expiring soon
-						secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
+						secretIDExpiring, err := vaultClient.IsSecretIDExpiringByPercentage(ctx, thresholdPercentage)
 						if err != nil {
 							logger.WithError(err).Debug("Failed to check secret ID expiry")
 						} else if secretIDExpiring {
-							fmt.Printf("⚠️  Secret ID will expire within %v!\n", threshold)
+							fmt.Printf("⚠️  Secret ID has less than %.0f%% of its lifetime remaining!\n", thresholdPercentage*100)
 						}
 					} else {
 						fmt.Printf("Secret ID TTL: %s seconds (no expiration time available)\n", secretIDTTL)
@@ -527,16 +532,20 @@ Use --no-update-config to skip updating the configuration file (AppRole only).`,
 				needsTokenRefresh = true
 				fmt.Printf("🔄 Force refresh requested, attempting to renew token\n")
 			} else if !statusOnly {
-				// Check if token is expiring within threshold
-				tokenExpiring := vaultClient.IsTokenExpiringWithin(threshold)
+				// Check if token is expiring by percentage threshold
+				tokenExpiring, err := vaultClient.IsTokenExpiringByPercentage(ctx, thresholdPercentage)
+				if err != nil {
+					logger.WithError(err).Warn("Failed to check token expiry percentage")
+					return fmt.Errorf("failed to check token expiry: %w", err)
+				}
 
 				if tokenExpiring {
 					logger.Info("Token is expiring soon, refreshing automatically")
 					needsTokenRefresh = true
-					fmt.Printf("🔄 Token expires within %v, refreshing automatically\n", threshold)
+					fmt.Printf("🔄 Token has less than %.0f%% of its lifetime remaining, refreshing automatically\n", thresholdPercentage*100)
 				} else {
 					logger.Info("Token is not expiring soon, no refresh needed")
-					fmt.Printf("✅ Token is not expiring within %v, no refresh needed\n", threshold)
+					fmt.Printf("✅ Token has more than %.0f%% of its lifetime remaining, no refresh needed\n", thresholdPercentage*100)
 				}
 			}
 
@@ -566,8 +575,8 @@ Use --no-update-config to skip updating the configuration file (AppRole only).`,
 				needsSecretIDRefresh = true
 				fmt.Printf("🔄 Force refresh requested, generating new secret ID\n")
 			} else if cfg.Vault.AppRoleName != "" && !statusOnly {
-				// Default behavior: check if secret ID is expiring
-				secretIDExpiring, err := vaultClient.IsSecretIDExpiringWithin(ctx, threshold)
+				// Default behavior: check if secret ID is expiring by percentage
+				secretIDExpiring, err := vaultClient.IsSecretIDExpiringByPercentage(ctx, thresholdPercentage)
 				if err != nil {
 					logger.WithError(err).Warn("Failed to check secret ID expiry")
 					return fmt.Errorf("failed to check secret ID expiry: %w", err)
@@ -576,10 +585,10 @@ Use --no-update-config to skip updating the configuration file (AppRole only).`,
 				if secretIDExpiring {
 					logger.Info("Secret ID is expiring soon, refreshing automatically")
 					needsSecretIDRefresh = true
-					fmt.Printf("🔄 Secret ID expires within %v, refreshing automatically\n", threshold)
+					fmt.Printf("🔄 Secret ID has less than %.0f%% of its lifetime remaining, refreshing automatically\n", thresholdPercentage*100)
 				} else {
 					logger.Info("Secret ID is not expiring soon, no refresh needed")
-					fmt.Printf("✅ Secret ID is not expiring within %v, no refresh needed\n", threshold)
+					fmt.Printf("✅ Secret ID has more than %.0f%% of its lifetime remaining, no refresh needed\n", thresholdPercentage*100)
 				}
 			}
 
@@ -646,9 +655,9 @@ func init() {
 	decryptCmd.Flags().StringP("name", "n", "", "custom name for the device mapping")
 
 	// Add flags specific to refresh-auth command
-	refreshAuthCmd.Flags().Float64P("threshold-minutes", "t", 30.0, "minutes before expiry to trigger automatic secret ID refresh")
-	refreshAuthCmd.Flags().BoolP("force", "f", false, "force refresh of secret ID regardless of expiry")
-	refreshAuthCmd.Flags().Bool("no-update-config", false, "skip updating the config file with new secret ID")
+	refreshAuthCmd.Flags().Float64P("threshold-percentage", "t", 0.25, "percentage of lifetime remaining to trigger refresh (0.0-1.0, default 0.25 = 25%)")
+	refreshAuthCmd.Flags().BoolP("force", "f", false, "force refresh of credentials regardless of expiry")
+	refreshAuthCmd.Flags().Bool("no-update-config", false, "skip updating the config file with new secret ID (AppRole only)")
 	refreshAuthCmd.Flags().Bool("status", false, "only show authentication status, don't perform any operations")
 }
 

@@ -84,7 +84,7 @@ Manage authentication credentials lifecycle (AppRole secret ID or Vault token):
 # Check authentication status only (no changes)
 vault-dm-crypt refresh-auth --status
 
-# Default: refresh if expiring within 30 minutes
+# Default: refresh if less than 25% of lifetime remaining
 # For AppRole: refreshes secret ID and updates config
 # For Token: attempts to renew the token
 vault-dm-crypt refresh-auth
@@ -95,13 +95,25 @@ vault-dm-crypt refresh-auth --force
 # Refresh without updating config file (AppRole only)
 vault-dm-crypt refresh-auth --no-update-config
 
-# Custom expiry threshold (e.g., 60 minutes)
-vault-dm-crypt refresh-auth --threshold-minutes 60
+# Custom threshold percentage (e.g., 50% = 0.5)
+vault-dm-crypt refresh-auth --threshold-percentage 0.5
 ```
 
-### Automated Secret ID Refresh
+**Recommended Vault Token/AppRole Settings:**
+- **Token TTL**: 24h (provides daily rotation)
+- **Max Token TTL**: 7d (maximum lifetime)
+- **Secret ID TTL**: 24h (for AppRole, provides daily rotation)
+- **Refresh Threshold**: 25% of lifetime remaining (default)
+- **Check Interval**: Every 15 minutes (via systemd timer)
 
-For production environments, use the included systemd timer to automatically refresh secret IDs:
+With these settings:
+- A 24h token/secret will be refreshed when it has 6 hours remaining
+- The systemd timer checks every 15 minutes, ensuring timely refresh
+- Tokens can be renewed up to 7 days before requiring re-authentication
+
+### Automated Credential Refresh
+
+For production environments, use the included systemd timer to automatically refresh credentials (token or AppRole secret ID):
 
 ```bash
 # Install systemd units
@@ -109,13 +121,23 @@ sudo cp configs/systemd/vault-dm-crypt-refresh.service /etc/systemd/system/
 sudo cp configs/systemd/vault-dm-crypt-refresh.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 
-# Enable automatic refresh every 15 minutes
+# Enable automatic refresh (runs every 15 minutes, refreshes at 25% lifetime remaining)
 sudo systemctl enable vault-dm-crypt-refresh.timer
 sudo systemctl start vault-dm-crypt-refresh.timer
+
+# Check timer status
+sudo systemctl status vault-dm-crypt-refresh.timer
 
 # Monitor refresh activity
 sudo journalctl -u vault-dm-crypt-refresh.service -f
 ```
+
+**How the automatic refresh works:**
+1. Timer runs every 15 minutes
+2. Checks if token/secret ID has less than 25% of its lifetime remaining
+3. For 24h credentials, refresh occurs when ~6h remain
+4. For token auth: attempts to renew the token
+5. For AppRole auth: generates new secret ID and updates config automatically
 
 ### Configuration
 
@@ -237,11 +259,13 @@ path "auth/token/lookup-self" {
 **Creating a Token:**
 
 ```bash
-# Create a renewable token with the vault-dm-crypt policy
+# Create a renewable periodic token with the vault-dm-crypt policy
+# Recommended settings: 24h TTL with 7d max TTL
 vault token create \
   -policy=vault-dm-crypt \
   -renewable=true \
   -ttl=24h \
+  -explicit-max-ttl=168h \
   -period=24h \
   -display-name="vault-dm-crypt-token"
 
@@ -252,6 +276,13 @@ vault token create \
 # token_accessor       ...
 # token_duration       24h
 # token_renewable      true
+# token_policies       ["vault-dm-crypt"]
+
+# With these settings:
+# - Token has 24h initial TTL
+# - Can be renewed every 24h (period)
+# - Maximum lifetime is 7 days (168h explicit-max-ttl)
+# - Automatically refreshed when <25% lifetime remains (~6h before expiry)
 ```
 
 #### For AppRole Authentication
@@ -330,10 +361,12 @@ path "auth/token/lookup-self" {
 # Enable AppRole auth method if not already enabled
 vault auth enable approle
 
-# Create the AppRole with appropriate settings
+# Create the AppRole with recommended settings
+# Token: 24h TTL with 7d max, Secret ID: 24h TTL
 vault write auth/approle/role/vault-dm-crypt \
-  token_ttl=1h \
-  token_max_ttl=4h \
+  token_ttl=24h \
+  token_max_ttl=168h \
+  token_period=24h \
   secret_id_ttl=24h \
   secret_id_num_uses=0 \
   token_policies="vault-dm-crypt"
@@ -351,11 +384,13 @@ vault write -field=secret_id auth/approle/role/vault-dm-crypt/secret-id
 
 **AppRole Configuration Recommendations:**
 
-- `token_ttl`: Duration of the token generated from AppRole login (e.g., 1h)
-- `token_max_ttl`: Maximum lifetime of the token (e.g., 4h)
-- `secret_id_ttl`: How long a secret ID is valid (e.g., 24h). Set to 0 for non-expiring secret IDs
+- `token_ttl`: Duration of tokens from AppRole login (24h recommended)
+- `token_max_ttl`: Maximum lifetime of tokens (168h = 7d recommended)
+- `token_period`: Renewal period for tokens (24h recommended)
+- `secret_id_ttl`: How long a secret ID is valid (24h recommended for daily rotation)
 - `secret_id_num_uses`: Number of times a secret ID can be used (0 = unlimited)
-- Use the systemd timer to automatically refresh secret IDs before they expire
+- The systemd timer checks every 15 minutes and refreshes when <25% lifetime remains
+- With 24h secret ID TTL, refresh occurs automatically when ~6h remain
 
 ### Setting up the Vault KV Backend
 

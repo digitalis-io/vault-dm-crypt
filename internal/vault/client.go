@@ -249,6 +249,52 @@ func (c *Client) IsTokenExpiringWithin(threshold time.Duration) bool {
 	return c.tokenExp.Before(expiryThreshold)
 }
 
+// IsTokenExpiringByPercentage checks if the token has less than the given percentage of its lifetime remaining
+// percentage should be between 0.0 and 1.0 (e.g., 0.25 for 25%)
+func (c *Client) IsTokenExpiringByPercentage(ctx context.Context, percentage float64) (bool, error) {
+	if c.tokenExp.IsZero() {
+		// If no expiry is set, consider it as expiring
+		return true, nil
+	}
+
+	// Get token info to find creation time and TTL
+	tokenInfo, err := c.GetTokenInfo(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get token info for percentage calculation")
+	}
+
+	// Get creation time
+	creationTimeStr, ok := tokenInfo["creation_time"].(string)
+	if !ok || creationTimeStr == "" {
+		// If we can't get creation time, fall back to simple time-based check
+		c.logger.Debug("No creation time available, using simple expiry check")
+		return c.IsTokenExpiringWithin(time.Until(c.tokenExp) * time.Duration(percentage)), nil
+	}
+
+	// Parse creation time
+	creationTime, err := time.Parse(time.RFC3339, creationTimeStr)
+	if err != nil {
+		c.logger.WithError(err).Debug("Failed to parse creation time, using simple expiry check")
+		return c.IsTokenExpiringWithin(time.Until(c.tokenExp) * time.Duration(percentage)), nil
+	}
+
+	// Calculate total lifetime and remaining lifetime
+	totalLifetime := c.tokenExp.Sub(creationTime)
+	remainingLifetime := time.Until(c.tokenExp)
+
+	// Calculate percentage remaining
+	percentageRemaining := float64(remainingLifetime) / float64(totalLifetime)
+
+	c.logger.WithFields(logrus.Fields{
+		"total_lifetime_hours":     totalLifetime.Hours(),
+		"remaining_lifetime_hours": remainingLifetime.Hours(),
+		"percentage_remaining":     percentageRemaining * 100,
+		"threshold_percentage":     percentage * 100,
+	}).Debug("Token lifetime percentage check")
+
+	return percentageRemaining < percentage, nil
+}
+
 // RefreshSecretID generates a new secret ID for the AppRole
 // This requires the AppRoleName to be configured and the role to have the ability to generate its own secret IDs
 func (c *Client) RefreshSecretID(ctx context.Context) (string, error) {
@@ -423,6 +469,79 @@ func (c *Client) IsSecretIDExpiringWithin(ctx context.Context, threshold time.Du
 	}).Debug("Secret ID expiry check")
 
 	return isExpiring, nil
+}
+
+// IsSecretIDExpiringByPercentage checks if the secret ID has less than the given percentage of its lifetime remaining
+// percentage should be between 0.0 and 1.0 (e.g., 0.25 for 25%)
+func (c *Client) IsSecretIDExpiringByPercentage(ctx context.Context, percentage float64) (bool, error) {
+	// Check if using token authentication
+	if c.config.VaultToken != "" {
+		return false, errors.New("secret ID expiry check not applicable for token authentication")
+	}
+
+	if c.config.AppRoleName == "" {
+		return false, errors.New("approle_name not configured - required for secret ID expiry check")
+	}
+
+	secretIDInfo, err := c.GetCurrentSecretIDInfo(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	// Check if expiration_time is available
+	expirationTimeStr, ok := secretIDInfo["expiration_time"].(string)
+	if !ok || expirationTimeStr == "" {
+		// If no expiration time, check if TTL is 0 (never expires)
+		if ttl, ok := secretIDInfo["secret_id_ttl"].(json.Number); ok {
+			ttlInt, _ := ttl.Int64()
+			if ttlInt == 0 {
+				c.logger.Debug("Secret ID has no expiration (TTL=0)")
+				return false, nil
+			}
+		}
+		c.logger.Debug("Secret ID expiration time not available")
+		return false, nil
+	}
+
+	// Parse the expiration time (Vault uses RFC3339 format)
+	expirationTime, err := time.Parse(time.RFC3339, expirationTimeStr)
+	if err != nil {
+		c.logger.WithError(err).Warn("Failed to parse secret ID expiration time")
+		return false, errors.Wrap(err, "failed to parse secret ID expiration time")
+	}
+
+	// Get creation time
+	creationTimeStr, ok := secretIDInfo["creation_time"].(string)
+	if !ok || creationTimeStr == "" {
+		// If we can't get creation time, fall back to simple time-based check
+		c.logger.Debug("No creation time available for secret ID, using simple expiry check")
+		remainingTime := time.Until(expirationTime)
+		return c.IsSecretIDExpiringWithin(ctx, remainingTime*time.Duration(percentage))
+	}
+
+	// Parse creation time
+	creationTime, err := time.Parse(time.RFC3339, creationTimeStr)
+	if err != nil {
+		c.logger.WithError(err).Debug("Failed to parse creation time, using simple expiry check")
+		remainingTime := time.Until(expirationTime)
+		return c.IsSecretIDExpiringWithin(ctx, remainingTime*time.Duration(percentage))
+	}
+
+	// Calculate total lifetime and remaining lifetime
+	totalLifetime := expirationTime.Sub(creationTime)
+	remainingLifetime := time.Until(expirationTime)
+
+	// Calculate percentage remaining
+	percentageRemaining := float64(remainingLifetime) / float64(totalLifetime)
+
+	c.logger.WithFields(logrus.Fields{
+		"total_lifetime_hours":     totalLifetime.Hours(),
+		"remaining_lifetime_hours": remainingLifetime.Hours(),
+		"percentage_remaining":     percentageRemaining * 100,
+		"threshold_percentage":     percentage * 100,
+	}).Debug("Secret ID lifetime percentage check")
+
+	return percentageRemaining < percentage, nil
 }
 
 // Close performs any necessary cleanup
