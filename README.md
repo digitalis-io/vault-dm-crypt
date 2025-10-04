@@ -161,6 +161,197 @@ output = "/var/log/vault-dm-crypt.log"
 
 **Note**: Use either `vault_token` OR `approle`/`secret_id`, not both. The two authentication methods are mutually exclusive.
 
+## Vault Configuration
+
+### Required Permissions
+
+vault-dm-crypt requires specific Vault policies depending on the authentication method used.
+
+#### For Token Authentication
+
+The token needs permissions to:
+- Read and write secrets at `secret/data/vaultlocker/*`
+- Renew itself (if the token is renewable)
+- Look up its own token information
+
+**Policy Example:**
+
+```hcl
+# Policy for vault-dm-crypt with token authentication
+path "secret/data/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "secret/metadata/vaultlocker/*" {
+  capabilities = ["list", "read", "delete"]
+}
+
+# Allow token to renew itself
+path "auth/token/renew-self" {
+  capabilities = ["update"]
+}
+
+# Allow token to look up its own properties
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}
+```
+
+**Creating a Token:**
+
+```bash
+# Create a renewable token with the vault-dm-crypt policy
+vault token create \
+  -policy=vault-dm-crypt \
+  -renewable=true \
+  -ttl=24h \
+  -period=24h \
+  -display-name="vault-dm-crypt-token"
+
+# The output will include the token to use in your config:
+# Key                  Value
+# ---                  -----
+# token                hvs.CAESI...
+# token_accessor       ...
+# token_duration       24h
+# token_renewable      true
+```
+
+#### For AppRole Authentication
+
+The AppRole needs permissions to:
+- Read and write secrets at `secret/data/vaultlocker/*`
+- Generate new secret IDs for itself (for automatic refresh)
+- Look up secret ID information
+
+**Policy Example:**
+
+```hcl
+# Policy for vault-dm-crypt with AppRole authentication
+path "secret/data/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "secret/metadata/vaultlocker/*" {
+  capabilities = ["list", "read", "delete"]
+}
+
+# Allow AppRole to generate new secret IDs for itself
+path "auth/approle/role/vault-dm-crypt/secret-id" {
+  capabilities = ["update"]
+}
+
+# Allow AppRole to look up secret ID information
+path "auth/approle/role/vault-dm-crypt/secret-id/lookup" {
+  capabilities = ["update"]
+}
+
+# Allow token to look up its own properties
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}
+```
+
+**Creating an AppRole:**
+
+```bash
+# Enable AppRole auth method if not already enabled
+vault auth enable approle
+
+# Create the AppRole with appropriate settings
+vault write auth/approle/role/vault-dm-crypt \
+  token_ttl=1h \
+  token_max_ttl=4h \
+  secret_id_ttl=24h \
+  secret_id_num_uses=0 \
+  token_policies="vault-dm-crypt"
+
+# Get the Role ID (use this as 'approle' in config.toml)
+vault read auth/approle/role/vault-dm-crypt/role-id
+
+# Generate a Secret ID (use this as 'secret_id' in config.toml)
+vault write -field=secret_id auth/approle/role/vault-dm-crypt/secret-id
+
+# Example output:
+# Role ID: 12345678-1234-1234-1234-123456789abc
+# Secret ID: 87654321-4321-4321-4321-cba987654321
+```
+
+**AppRole Configuration Recommendations:**
+
+- `token_ttl`: Duration of the token generated from AppRole login (e.g., 1h)
+- `token_max_ttl`: Maximum lifetime of the token (e.g., 4h)
+- `secret_id_ttl`: How long a secret ID is valid (e.g., 24h). Set to 0 for non-expiring secret IDs
+- `secret_id_num_uses`: Number of times a secret ID can be used (0 = unlimited)
+- Use the systemd timer to automatically refresh secret IDs before they expire
+
+### Setting up the Vault KV Backend
+
+vault-dm-crypt expects a KV v2 secrets engine mounted at the path specified in `backend` (default: `secret`):
+
+```bash
+# Enable KV v2 secrets engine if not already enabled
+vault secrets enable -path=secret kv-v2
+
+# Verify it's enabled
+vault secrets list
+
+# Example output should show:
+# Path          Type         ...
+# ----          ----         ...
+# secret/       kv           ...
+```
+
+### Quick Setup Script
+
+```bash
+#!/bin/bash
+# Quick setup script for vault-dm-crypt Vault configuration
+
+# Enable required auth and secrets engines
+vault auth enable approle 2>/dev/null || true
+vault secrets enable -path=secret kv-v2 2>/dev/null || true
+
+# Create policy
+vault policy write vault-dm-crypt - <<EOF
+path "secret/data/vaultlocker/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "secret/metadata/vaultlocker/*" {
+  capabilities = ["list", "read", "delete"]
+}
+
+path "auth/approle/role/vault-dm-crypt/secret-id" {
+  capabilities = ["update"]
+}
+
+path "auth/approle/role/vault-dm-crypt/secret-id/lookup" {
+  capabilities = ["update"]
+}
+
+path "auth/token/lookup-self" {
+  capabilities = ["read"]
+}
+EOF
+
+# Create AppRole
+vault write auth/approle/role/vault-dm-crypt \
+  token_ttl=1h \
+  token_max_ttl=4h \
+  secret_id_ttl=24h \
+  secret_id_num_uses=0 \
+  token_policies="vault-dm-crypt"
+
+# Get credentials
+echo "=== AppRole Credentials ==="
+echo "Role ID:"
+vault read -field=role_id auth/approle/role/vault-dm-crypt/role-id
+echo ""
+echo "Secret ID:"
+vault write -field=secret_id auth/approle/role/vault-dm-crypt/secret-id
+```
+
 ## Development
 
 See [CLAUDE.md](CLAUDE.md) for development commands and guidelines.
