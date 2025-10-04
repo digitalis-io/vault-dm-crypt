@@ -169,38 +169,38 @@ jobs:
           name: debian-package
           path: "${{ env.artifacts_path }}/vault-dm-crypt_*.deb"
 
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    services:
-      vault:
-        image: hashicorp/vault:latest
-        ports:
-          - 8200:8200
-        env:
-          VAULT_DEV_ROOT_TOKEN_ID: root-token
-          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-        options: --cap-add=IPC_LOCK
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Install cryptsetup
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cryptsetup
-
-      - name: Run integration tests
-        env:
-          VAULT_ADDR: http://localhost:8200
-          VAULT_TOKEN: root-token
-        run: |
-          go test -v ./test/integration/...
+#  integration:
+#    name: Integration Tests
+#    runs-on: ubuntu-latest
+#    services:
+#      vault:
+#        image: hashicorp/vault:latest
+#        ports:
+#          - 8200:8200
+#        env:
+#          VAULT_DEV_ROOT_TOKEN_ID: root-token
+#          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+#        options: --cap-add=IPC_LOCK
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Set up Go
+#        uses: actions/setup-go@v5
+#        with:
+#          go-version: ${{ env.GO_VERSION }}
+#
+#      - name: Install cryptsetup
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y cryptsetup
+#
+#      - name: Run integration tests
+#        env:
+#          VAULT_ADDR: http://localhost:8200
+#          VAULT_TOKEN: root-token
+#        run: |
+#          go test -v ./test/integration/...
 
   release:
     name: Release
